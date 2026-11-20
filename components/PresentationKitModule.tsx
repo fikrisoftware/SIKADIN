@@ -55,10 +55,10 @@ const DELIVERABLES = [
   },
   {
     id: 'video',
-    label: 'MP4 · Full HD 1080p',
-    title: 'Video Promosi KADIN DIGI',
-    desc: 'Video promosi berdurasi ~38 detik (1920×1080, 30fps, audio latar korporat) menampilkan profil KADIN DIGI, Si KADI, dan keempat pilar operasional UMKM.',
-    href: '/downloads/Video_Promosi_KADIN_DIGI.mp4',
+    label: 'MP4 · Full HD + Narasi',
+    title: 'Video Promosi KADIN DIGI (Narasi Si KADI)',
+    desc: 'Video promosi Full HD 1080p dilengkapi suara narasi Bahasa Indonesia, animasi maskot Si KADI berbicara (lip-sync & kedipan mata), teks narasi tersinkron, dan musik latar korporat.',
+    href: '/downloads/Video_Promosi_KADIN_DIGI.mp4?v=2',
     fileName: 'Video_Promosi_KADIN_DIGI.mp4',
     icon: Film,
     previewable: false,
@@ -108,7 +108,7 @@ export function PresentationKitModule({ compact = false }: { compact?: boolean }
                 poster="/assets/aistudio/image_0a4c7de4.png"
                 className="w-full h-full object-contain bg-navy-950"
               >
-                <source src="/downloads/Video_Promosi_KADIN_DIGI.mp4" type="video/mp4" />
+                <source src="/downloads/Video_Promosi_KADIN_DIGI.mp4?v=2" type="video/mp4" />
                 Browser Anda tidak mendukung pemutar video HTML5.
               </video>
             </div>
@@ -129,7 +129,7 @@ export function PresentationKitModule({ compact = false }: { compact?: boolean }
               </p>
 
               <div className="text-xs text-slate-500 space-y-1.5 border-t border-slate-100 pt-4">
-                <p>Resolusi Video: Full HD 1920×1080 · 30fps · Stereo AAC</p>
+                <p>Video: Full HD 1920×1080 · Narasi Bahasa Indonesia + Animasi Si KADI Berbicara</p>
                 <p>Format Presentasi: Microsoft PowerPoint (.pptx) · 10 Slide 16:9</p>
                 <p>Dokumen Teknis &amp; Produk: PRD + TSD Lengkap (.md / Cetak PDF)</p>
               </div>
@@ -145,7 +145,7 @@ export function PresentationKitModule({ compact = false }: { compact?: boolean }
                 Unduh File PPT (.pptx)
               </a>
               <a
-                href="/downloads/Video_Promosi_KADIN_DIGI.mp4"
+                href="/downloads/Video_Promosi_KADIN_DIGI.mp4?v=2"
                 download="Video_Promosi_KADIN_DIGI.mp4"
                 className="inline-flex items-center gap-2 px-4 py-2.5 bg-navy-900 text-white text-xs font-semibold rounded-lg hover:bg-navy-800 transition-colors whitespace-nowrap"
               >
