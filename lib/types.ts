@@ -161,8 +161,7 @@ export type ActiveTab =
   | 'inventory'
   | 'customers'
   | 'marketing'
-  | 'analytics'
-  | 'presentation';
+  | 'analytics';
 
 // Blueprint-synchronized validation boundaries
 export const LIMITS = {

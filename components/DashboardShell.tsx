@@ -8,7 +8,6 @@ import {
   Megaphone,
   Menu,
   Package,
-  Presentation,
   ShoppingCart,
   Store,
   Users,
@@ -21,7 +20,6 @@ import { InventoryModule } from './InventoryModule';
 import { CustomersModule } from './CustomersModule';
 import { MarketingModule } from './MarketingModule';
 import { AnalyticsModule } from './AnalyticsModule';
-import { PresentationKitModule } from './PresentationKitModule';
 import { StoreProfileModal } from './StoreProfileModal';
 import { seedSampleUmkmData } from '@/lib/firestore-service';
 import type { ActiveTab } from '@/lib/types';
@@ -67,13 +65,6 @@ const NAV_ITEMS: Array<{
     title: 'Analisis Penjualan & Kinerja',
     subtitle: 'Evaluasi omzet, laba kotor, produk terlaris, dan laporan CSV.',
     icon: BarChart3,
-  },
-  {
-    id: 'presentation',
-    label: 'Presentasi KADIN',
-    title: 'Paket Presentasi & Dokumen KADIN',
-    subtitle: 'Unduh PRD, TSD, File PowerPoint (.pptx), dan putar Video Promosi KADIN DIGI.',
-    icon: Presentation,
   },
 ];
 
@@ -356,7 +347,6 @@ export function DashboardShell() {
               {activeTab === 'customers' && <CustomersModule />}
               {activeTab === 'marketing' && <MarketingModule />}
               {activeTab === 'analytics' && <AnalyticsModule />}
-              {activeTab === 'presentation' && <PresentationKitModule />}
             </>
           )}
         </main>

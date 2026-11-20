@@ -1,17 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import {
   ArrowRight,
   BarChart3,
-  Bot,
   Megaphone,
   ShoppingCart,
   Users,
 } from 'lucide-react';
 import { useAppData } from './AuthContext';
 import { KadinDigiWordmark, SiKadiIcon } from './SiKadiBrand';
-import { PresentationKitModule } from './PresentationKitModule';
 
 const CAPABILITIES = [
   {
@@ -42,7 +40,6 @@ const CAPABILITIES = [
 
 export function WelcomeScreen() {
   const { signInWithGoogle, signingIn, authError } = useAppData();
-  const [heroError, setHeroError] = useState(false);
 
   return (
     <div className="min-h-screen bg-[#f3f6fb] text-slate-900 flex flex-col">
@@ -80,12 +77,6 @@ export function WelcomeScreen() {
             >
               Si KADI
             </a>
-            <a
-              href="#materi-kadin"
-              className="hover:text-white transition-colors whitespace-nowrap shrink-0"
-            >
-              Materi KADIN
-            </a>
           </nav>
 
           {/* Zone 3: 1 Primary Action */}
@@ -108,7 +99,7 @@ export function WelcomeScreen() {
           <div className="max-w-7xl mx-auto px-6 py-12 lg:py-16">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
               {/* Left Content Column */}
-              <div className="lg:col-span-7 flex flex-col justify-center">
+              <div className="lg:col-span-6 flex flex-col justify-center">
                 <div className="flex items-center gap-3.5 mb-6">
                   <SiKadiIcon size="md" variant="dark" />
                   <div className="text-sm text-blue-100">
@@ -167,23 +158,28 @@ export function WelcomeScreen() {
                 </div>
               </div>
 
-              {/* Right Visual Column: Official KADIN DIGI & Si KADI Reference Artwork */}
-              <div className="lg:col-span-5 flex justify-center lg:justify-end">
-                <div className="w-full max-w-[460px] aspect-square rounded-2xl overflow-hidden border border-white/15 bg-navy-900">
-                  {!heroError ? (
-                    <img
-                      src="/assets/aistudio/image_0a4c7de4.png"
-                      alt="KADIN DIGI — Si KADI Robot Sahabat UMKM, UMKM Naik Kelas Bisnis Makin Cuan"
-                      referrerPolicy="no-referrer"
-                      onError={() => setHeroError(true)}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center p-10 bg-navy-900 text-white">
-                      <Bot className="w-12 h-12 mb-3 text-kadin-orange-light" />
-                      <p className="font-display font-bold text-lg">KADIN DIGI · Si KADI</p>
-                    </div>
-                  )}
+              {/* Right Visual Column: KADIN DIGI Promotional Video with Talking Si KADI */}
+              <div className="lg:col-span-6 flex justify-center lg:justify-end">
+                <div className="w-full rounded-2xl overflow-hidden border border-white/15 bg-navy-950 shadow-2xl">
+                  <div className="w-full aspect-video bg-navy-950">
+                    <video
+                      controls
+                      preload="metadata"
+                      poster="/assets/aistudio/image_0a4c7de4.png"
+                      className="w-full h-full object-contain bg-navy-950"
+                    >
+                      <source src="/downloads/Video_Promosi_KADIN_DIGI.mp4?v=3" type="video/mp4" />
+                      Browser Anda tidak mendukung pemutar video HTML5.
+                    </video>
+                  </div>
+                  <div className="px-4 py-3 border-t border-white/10 bg-navy-900/70 flex items-center justify-between gap-3 text-xs">
+                    <span className="font-semibold text-white">
+                      Video Pengenalan KADIN DIGI · Si KADI
+                    </span>
+                    <span className="text-kadin-orange-light font-medium shrink-0">
+                      Full HD · Narasi
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -245,18 +241,6 @@ export function WelcomeScreen() {
               Buka Dashboard KADIN DIGI
             </button>
           </div>
-        </section>
-        {/* Paket Presentasi KADIN Indonesia: Video Promosi, PPTX, PRD, TSD */}
-        <section id="materi-kadin" className="max-w-7xl mx-auto px-6 pb-16">
-          <div className="max-w-2xl mb-8">
-            <p className="text-sm font-semibold text-kadin-orange mb-2">
-              Dokumen &amp; Media Presentasi
-            </p>
-            <h2 className="text-2xl sm:text-3xl font-bold text-navy-900 tracking-tight [text-wrap:balance]">
-              Materi Presentasi untuk Kamar Dagang dan Industri Indonesia
-            </h2>
-          </div>
-          <PresentationKitModule compact />
         </section>
       </main>
 
