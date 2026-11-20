@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-display: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  --color-navy-950: #051633;
+  --color-navy-900: #08234d;
+  --color-navy-800: #0d326b;
+  --color-navy-700: #144691;
+  --color-navy-50: #eef4fc;
+  --color-kadin-orange: #ea580c;
+  --color-kadin-orange-hover: #c2410c;
+  --color-kadin-orange-bright: #f97316;
+  --color-kadin-orange-light: #fb923c;
+  --color-kadin-orange-soft: #fff4eb;
+  --color-kadin-cyan: #22d3ee;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    background-color: #f3f6fb;
+    color: #08234d;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: var(--font-display);
+  }
+
+  button, a, input, select, textarea {
+    transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+.kadin-hero-bg {
+  background-color: #051633;
+  background-image:
+    radial-gradient(circle at 72% 45%, rgba(20, 78, 168, 0.45) 0%, rgba(5, 22, 51, 0) 55%),
+    radial-gradient(circle at 18% 20%, rgba(249, 115, 22, 0.14) 0%, rgba(5, 22, 51, 0) 45%);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #kadin-receipt-print,
+  #kadin-receipt-print * {
+    visibility: visible;
+  }
+  #kadin-receipt-print {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: 320px;
+    padding: 16px;
+    background: #ffffff;
+    color: #000000;
+  }
+}

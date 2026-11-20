@@ -1,0 +1,315 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // === Global Hardened Primitives ===
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isOwnerId(uid) {
+      return isVerifiedUser() && request.auth.uid == uid;
+    }
+
+    // === Entity Validation Blueprints ===
+
+    function isValidStoreProfile(data) {
+      return data.keys().hasAll(['ownerId', 'storeName', 'category', 'phone', 'address', 'tagline', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'storeName', 'category', 'phone', 'address', 'tagline', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.storeName is string && data.storeName.size() >= 1 && data.storeName.size() <= 120
+        && data.category is string && data.category.size() >= 1 && data.category.size() <= 40
+        && data.category in ['Kuliner & F&B', 'Fashion & Batik', 'Kriya & Kerajinan', 'Sembako & Ritel', 'Jasa & Layanan', 'Lainnya']
+        && data.phone is string && data.phone.size() <= 25
+        && data.address is string && data.address.size() <= 250
+        && data.tagline is string && data.tagline.size() <= 120
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['ownerId', 'sku', 'name', 'category', 'costPrice', 'sellPrice', 'stock', 'minStock', 'unit', 'imageUrl', 'isActive', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'sku', 'name', 'category', 'costPrice', 'sellPrice', 'stock', 'minStock', 'unit', 'imageUrl', 'isActive', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.sku is string && data.sku.size() >= 1 && data.sku.size() <= 40 && data.sku.matches('^[a-zA-Z0-9_\\-\\.]+$')
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.category is string && data.category.size() >= 1 && data.category.size() <= 30
+        && data.category in ['Kuliner', 'Minuman', 'Fashion', 'Kriya', 'Sembako', 'Jasa']
+        && data.costPrice is number && data.costPrice >= 0 && data.costPrice <= 1000000000
+        && data.sellPrice is number && data.sellPrice >= 0 && data.sellPrice <= 1000000000
+        && data.stock is number && data.stock >= 0 && data.stock <= 1000000
+        && data.minStock is number && data.minStock >= 0 && data.minStock <= 100000
+        && data.unit is string && data.unit.size() >= 1 && data.unit.size() <= 20
+        && data.imageUrl is string && data.imageUrl.size() <= 300
+        && data.isActive is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStockLog(data) {
+      return data.keys().hasAll(['ownerId', 'productId', 'productName', 'type', 'delta', 'stockAfter', 'note', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'productId', 'productName', 'type', 'delta', 'stockAfter', 'note', 'createdAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && isValidId(data.productId)
+        && data.productName is string && data.productName.size() >= 1 && data.productName.size() <= 120
+        && data.type is string && data.type.size() >= 1 && data.type.size() <= 20
+        && data.type in ['masuk', 'keluar', 'penjualan', 'koreksi']
+        && data.delta is number && data.delta >= -100000 && data.delta <= 100000
+        && data.stockAfter is number && data.stockAfter >= 0 && data.stockAfter <= 1000000
+        && data.note is string && data.note.size() <= 240
+        && data.createdAt is timestamp;
+    }
+
+    function isValidCustomer(data) {
+      return data.keys().hasAll(['ownerId', 'name', 'phone', 'email', 'segment', 'notes', 'totalSpent', 'totalOrders', 'loyaltyPoints', 'lastOrderAt', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'name', 'phone', 'email', 'segment', 'notes', 'totalSpent', 'totalOrders', 'loyaltyPoints', 'lastOrderAt', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.phone is string && data.phone.size() >= 6 && data.phone.size() <= 25
+        && data.email is string && data.email.size() <= 120
+        && data.segment is string && data.segment.size() >= 1 && data.segment.size() <= 20
+        && data.segment in ['Reguler', 'Setia', 'VIP', 'Reseller']
+        && data.notes is string && data.notes.size() <= 300
+        && data.totalSpent is number && data.totalSpent >= 0 && data.totalSpent <= 10000000000
+        && data.totalOrders is number && data.totalOrders >= 0 && data.totalOrders <= 1000000
+        && data.loyaltyPoints is number && data.loyaltyPoints >= 0 && data.loyaltyPoints <= 10000000
+        && data.lastOrderAt is string && data.lastOrderAt.size() <= 40
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCampaign(data) {
+      return data.keys().hasAll(['ownerId', 'title', 'channel', 'targetSegment', 'promoCode', 'discountPercent', 'message', 'status', 'startDate', 'endDate', 'targetCount', 'redemptions', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'title', 'channel', 'targetSegment', 'promoCode', 'discountPercent', 'message', 'status', 'startDate', 'endDate', 'targetCount', 'redemptions', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+        && data.channel is string && data.channel.size() >= 1 && data.channel.size() <= 30
+        && data.channel in ['WhatsApp', 'Instagram', 'TikTok', 'Katalog Digital', 'Voucher Kasir']
+        && data.targetSegment is string && data.targetSegment.size() >= 1 && data.targetSegment.size() <= 20
+        && data.targetSegment in ['Semua', 'Reguler', 'Setia', 'VIP', 'Reseller']
+        && data.promoCode is string && data.promoCode.size() <= 24 && data.promoCode.matches('^[A-Z0-9_\\-]*$')
+        && data.discountPercent is number && data.discountPercent >= 0 && data.discountPercent <= 90
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 1000
+        && data.status is string && data.status.size() >= 1 && data.status.size() <= 20
+        && data.status in ['Draft', 'Aktif', 'Selesai']
+        && data.startDate is string && data.startDate.size() >= 10 && data.startDate.size() <= 20 && data.startDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.endDate is string && data.endDate.size() >= 10 && data.endDate.size() <= 20 && data.endDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.targetCount is number && data.targetCount >= 0 && data.targetCount <= 1000000
+        && data.redemptions is number && data.redemptions >= 0 && data.redemptions <= 1000000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTransactionItem(item) {
+      return item is map
+        && item.keys().hasAll(['productId', 'sku', 'name', 'category', 'qty', 'sellPrice', 'costPrice', 'subtotal'])
+        && item.keys().hasOnly(['productId', 'sku', 'name', 'category', 'qty', 'sellPrice', 'costPrice', 'subtotal'])
+        && isValidId(item.productId)
+        && item.sku is string && item.sku.size() >= 1 && item.sku.size() <= 40
+        && item.name is string && item.name.size() >= 1 && item.name.size() <= 120
+        && item.category is string && item.category.size() >= 1 && item.category.size() <= 30
+        && item.qty is number && item.qty >= 1 && item.qty <= 1000
+        && item.sellPrice is number && item.sellPrice >= 0 && item.sellPrice <= 1000000000
+        && item.costPrice is number && item.costPrice >= 0 && item.costPrice <= 1000000000
+        && item.subtotal is number && item.subtotal >= 0 && item.subtotal <= 1000000000;
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['ownerId', 'receiptNo', 'customerId', 'customerName', 'items', 'itemCount', 'subtotal', 'discount', 'promoCode', 'total', 'totalCost', 'profit', 'paymentMethod', 'amountPaid', 'changeAmount', 'status', 'saleDate', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'receiptNo', 'customerId', 'customerName', 'items', 'itemCount', 'subtotal', 'discount', 'promoCode', 'total', 'totalCost', 'profit', 'paymentMethod', 'amountPaid', 'changeAmount', 'status', 'saleDate', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.receiptNo is string && data.receiptNo.size() >= 4 && data.receiptNo.size() <= 40 && data.receiptNo.matches('^[A-Z0-9_\\-]+$')
+        && data.customerId is string && data.customerId.size() <= 128
+        && data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 120
+        && data.items is list && data.items.size() >= 1 && data.items.size() <= 50
+        && isValidTransactionItem(data.items[0])
+        && data.itemCount is number && data.itemCount >= 1 && data.itemCount <= 1000
+        && data.subtotal is number && data.subtotal >= 0 && data.subtotal <= 1000000000
+        && data.discount is number && data.discount >= 0 && data.discount <= 1000000000
+        && data.promoCode is string && data.promoCode.size() <= 24
+        && data.total is number && data.total >= 0 && data.total <= 1000000000
+        && data.totalCost is number && data.totalCost >= 0 && data.totalCost <= 1000000000
+        && data.profit is number && data.profit >= -1000000000 && data.profit <= 1000000000
+        && data.paymentMethod is string && data.paymentMethod.size() >= 1 && data.paymentMethod.size() <= 30
+        && data.paymentMethod in ['Tunai', 'QRIS', 'Transfer Bank', 'E-Wallet']
+        && data.amountPaid is number && data.amountPaid >= 0 && data.amountPaid <= 1000000000
+        && data.changeAmount is number && data.changeAmount >= 0 && data.changeAmount <= 1000000000
+        && data.status is string && data.status.size() >= 1 && data.status.size() <= 20
+        && data.status in ['Selesai', 'Dibatalkan']
+        && data.saleDate is string && data.saleDate.size() >= 10 && data.saleDate.size() <= 20 && data.saleDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // === Collection Rules ===
+
+    // 1. Store Profile (Contains PII: phone, address)
+    match /stores/{ownerId} {
+      allow get: if isOwnerId(ownerId) && isValidId(ownerId);
+      allow list: if false;
+      allow create: if isOwnerId(ownerId)
+        && isValidId(ownerId)
+        && isValidStoreProfile(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isOwnerId(ownerId)
+        && isValidId(ownerId)
+        && isValidStoreProfile(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['storeName', 'category', 'phone', 'address', 'tagline', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // 2. Products / Inventory
+    match /products/{productId} {
+      allow get: if isVerifiedUser() && isValidId(productId) && existing().ownerId == request.auth.uid;
+      allow list: if isVerifiedUser() && existing().ownerId == request.auth.uid;
+      allow create: if isVerifiedUser()
+        && isValidId(productId)
+        && isValidProduct(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(productId)
+        && isValidProduct(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Edit Product Details
+          incoming().diff(existing()).affectedKeys().hasOnly(['sku', 'name', 'category', 'costPrice', 'sellPrice', 'stock', 'minStock', 'unit', 'imageUrl', 'isActive', 'updatedAt']) ||
+          // Action: Stock Adjustment / POS Sale Stock Decrement
+          incoming().diff(existing()).affectedKeys().hasOnly(['stock', 'updatedAt'])
+        );
+      allow delete: if isVerifiedUser() && isValidId(productId) && existing().ownerId == request.auth.uid;
+    }
+
+    // 3. Stock Logs (Immutable Audit Log)
+    match /stockLogs/{logId} {
+      allow get: if isVerifiedUser() && isValidId(logId) && existing().ownerId == request.auth.uid;
+      allow list: if isVerifiedUser() && existing().ownerId == request.auth.uid;
+      allow create: if isVerifiedUser()
+        && isValidId(logId)
+        && isValidStockLog(incoming())
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/products/$(incoming().productId))
+        && get(/databases/$(database)/documents/products/$(incoming().productId)).data.ownerId == request.auth.uid;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // 4. Customers (Contains PII: phone, email — Strictly Owner-Isolated)
+    match /customers/{customerId} {
+      allow get: if isVerifiedUser() && isValidId(customerId) && existing().ownerId == request.auth.uid;
+      allow list: if isVerifiedUser() && existing().ownerId == request.auth.uid;
+      allow create: if isVerifiedUser()
+        && isValidId(customerId)
+        && isValidCustomer(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(customerId)
+        && isValidCustomer(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Edit Customer Profile
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'email', 'segment', 'notes', 'updatedAt']) ||
+          // Action: POS Checkout Stats & Loyalty Update
+          incoming().diff(existing()).affectedKeys().hasOnly(['totalSpent', 'totalOrders', 'loyaltyPoints', 'lastOrderAt', 'segment', 'updatedAt'])
+        );
+      allow delete: if isVerifiedUser() && isValidId(customerId) && existing().ownerId == request.auth.uid;
+    }
+
+    // 5. Digital Marketing Campaigns & Vouchers
+    match /campaigns/{campaignId} {
+      allow get: if isVerifiedUser() && isValidId(campaignId) && existing().ownerId == request.auth.uid;
+      allow list: if isVerifiedUser() && existing().ownerId == request.auth.uid;
+      allow create: if isVerifiedUser()
+        && isValidId(campaignId)
+        && isValidCampaign(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(campaignId)
+        && isValidCampaign(incoming())
+        && existing().ownerId == request.auth.uid
+        && existing().status != 'Selesai'
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Edit Campaign Details
+          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'channel', 'targetSegment', 'promoCode', 'discountPercent', 'message', 'status', 'startDate', 'endDate', 'targetCount', 'updatedAt']) ||
+          // Action: Toggle Campaign Status
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) ||
+          // Action: Increment Voucher Redemptions on POS Checkout
+          (incoming().diff(existing()).affectedKeys().hasOnly(['redemptions', 'updatedAt']) && incoming().redemptions == existing().redemptions + 1)
+        );
+      allow delete: if isVerifiedUser() && isValidId(campaignId) && existing().ownerId == request.auth.uid;
+    }
+
+    // 6. POS Transactions
+    match /transactions/{transactionId} {
+      allow get: if isVerifiedUser() && isValidId(transactionId) && existing().ownerId == request.auth.uid;
+      allow list: if isVerifiedUser() && existing().ownerId == request.auth.uid;
+      allow create: if isVerifiedUser()
+        && isValidId(transactionId)
+        && isValidTransaction(incoming())
+        && incoming().status == 'Selesai'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          incoming().customerId == '' ||
+          (
+            isValidId(incoming().customerId)
+            && exists(/databases/$(database)/documents/customers/$(incoming().customerId))
+            && get(/databases/$(database)/documents/customers/$(incoming().customerId)).data.ownerId == request.auth.uid
+          )
+        );
+      allow update: if isVerifiedUser()
+        && isValidId(transactionId)
+        && isValidTransaction(incoming())
+        && existing().ownerId == request.auth.uid
+        && existing().status == 'Selesai'
+        && incoming().status == 'Dibatalkan'
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow delete: if false;
+    }
+  }
+}

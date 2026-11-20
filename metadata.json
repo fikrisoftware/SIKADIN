@@ -1,0 +1,6 @@
+{
+  "name": "KADIN DIGI",
+  "description": "KADIN DIGI dengan Si KADI — Sistem Kasir UMKM, Inventory, Database Pelanggan, Pemasaran Digital, serta Analisis Penjualan dan Kinerja. UMKM Naik Kelas, Bisnis Makin Cuan.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
