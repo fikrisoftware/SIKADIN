@@ -45,7 +45,7 @@ export function SiKadiIcon({
     >
       <img
         src="/images/si-kadi-logo.jpg"
-        alt="Si KADI — Robot Sahabat UMKM KADIN DIGI"
+        alt="Si KADI — Sistem Kasir dan Inventori KADIN DIGI"
         referrerPolicy="no-referrer"
         onError={() => setImgError(true)}
         className="w-full h-full object-cover"

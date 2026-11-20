@@ -7,7 +7,8 @@ import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 const ROOT = process.cwd();
 const TMP_DIR = path.join(ROOT, '.tmp_video');
 const OUT_MP4 = path.join(ROOT, 'public/downloads/Video_Promosi_KADIN_DIGI.mp4');
-const POSTER_IMG = path.join(ROOT, 'public/assets/aistudio/image_0a4c7de4.png');
+const OUT_POSTER = path.join(ROOT, 'public/images/video-poster-kadin.png');
+const KADIN_LOGO = path.join(ROOT, 'public/assets/aistudio/image_33c655e3.png');
 const LOGO_IMG = path.join(ROOT, 'public/images/si-kadi-logo.jpg');
 const PROD_KOPI = path.join(ROOT, 'public/images/prod-kopi-susu.jpg');
 const PROD_BATIK = path.join(ROOT, 'public/images/prod-batik-scarf.jpg');
@@ -30,11 +31,11 @@ const SCENE_SCRIPTS = [
     id: 'scene1',
     mode: 'hero-right',
     narration:
-      'Halo Bapak dan Ibu pimpinan KADIN Indonesia! Perkenalkan, saya Si KADI, Robot Sahabat UMKM dari KADIN DIGI. Bersama kita wujudkan UMKM Naik Kelas, Bisnis Makin Cuan!',
+      'Halo Bapak dan Ibu Pimpinan Perusahaan! Perkenalkan, saya Si KADI, Sistem Kasir dan Inventori dari KADIN DIGI, bekerja sama dengan KADIN Indonesia. Bersama kita wujudkan UMKM Naik Kelas, Bisnis Makin Cuan!',
     subtitles: [
-      'Halo Bapak & Ibu pimpinan KADIN Indonesia!',
-      'Saya Si KADI, Robot Sahabat UMKM dari KADIN DIGI.',
-      'Bersama kita wujudkan UMKM Naik Kelas, Bisnis Makin Cuan!',
+      'Halo Bapak dan Ibu Pimpinan Perusahaan!',
+      'Saya Si KADI — Sistem Kasir dan Inventori dari KADIN DIGI.',
+      'Bekerja sama dengan KADIN Indonesia: UMKM Naik Kelas, Bisnis Makin Cuan!',
     ],
   },
   {
@@ -96,10 +97,10 @@ const SCENE_SCRIPTS = [
     id: 'scene7',
     mode: 'hero-center',
     narration:
-      'Mari bersinergi bersama Kamar Dagang dan Industri Indonesia, mempercepat transformasi digital UMKM di seluruh nusantara. KADIN DIGI: UMKM Naik Kelas, Bisnis Makin Cuan!',
+      'Mari bersinergi bersama KADIN Indonesia, mempercepat transformasi digital UMKM di seluruh nusantara bersama Si KADI, Sistem Kasir dan Inventori. KADIN DIGI: UMKM Naik Kelas, Bisnis Makin Cuan!',
     subtitles: [
-      'Mari bersinergi bersama Kamar Dagang dan Industri Indonesia.',
-      'Mempercepat transformasi digital UMKM di seluruh nusantara.',
+      'Mari bersinergi bersama KADIN Indonesia.',
+      'Transformasi digital bersama Si KADI — Sistem Kasir dan Inventori.',
       'KADIN DIGI — UMKM Naik Kelas, Bisnis Makin Cuan!',
     ],
   },
@@ -596,7 +597,14 @@ async function renderSceneRGB(svgMarkup, overlays = []) {
 }
 
 async function buildScenePlates() {
-  const posterSmall = await prepRoundedImage(POSTER_IMG, 360, 360, 24);
+  const kadinLogoCard = await sharp(KADIN_LOGO)
+    .resize(190, 190, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+  const kadinLogoClosing = await sharp(KADIN_LOGO)
+    .resize(104, 104, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
   const logoSmall = await prepRoundedImage(LOGO_IMG, 72, 72, 16);
   const kopiBuf = await prepRoundedImage(PROD_KOPI, 210, 210, 20);
   const batikBuf = await prepRoundedImage(PROD_BATIK, 210, 210, 20);
@@ -604,7 +612,7 @@ async function buildScenePlates() {
 
   const plates = [];
 
-  // SCENE 1: OPENING BRAND REVEAL — Left Copy + Right Large Animated Talking Si KADI Stage
+  // SCENE 1: OPENING BRAND REVEAL — Left Copy + KADIN Cooperation Badge + Right Large Talking Si KADI Stage
   plates.push(
     await renderSceneRGB(
       `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
@@ -618,25 +626,29 @@ async function buildScenePlates() {
         <rect width="${W}" height="${H}" fill="url(#g1)"/>
         <rect x="0" y="0" width="20" height="${H}" fill="#F97316"/>
 
-        <text x="100" y="160" font-family="Noto Sans" font-size="24" font-weight="700" fill="#22D3EE" letter-spacing="4">MEMPERSEMBAHKAN UNTUK KADIN INDONESIA</text>
-        <text x="100" y="295" font-family="Noto Sans" font-size="124" font-weight="800" fill="#FFFFFF">KADIN <tspan fill="#F97316">DIGI</tspan></text>
-        <text x="100" y="375" font-family="Noto Sans" font-size="40" font-weight="700" fill="#DBEAFE">Si KADI — Robot Sahabat UMKM</text>
-        <text x="100" y="452" font-family="Noto Sans" font-size="28" fill="#CBD5E1">Platform Kasir Digital, Inventori, Database Pelanggan,</text>
-        <text x="100" y="494" font-family="Noto Sans" font-size="28" fill="#CBD5E1">Pemasaran Digital &amp; Analisis Kinerja Bisnis UMKM.</text>
+        <text x="100" y="150" font-family="Noto Sans" font-size="23" font-weight="700" fill="#22D3EE" letter-spacing="3.5">SOLUSI DIGITALISASI UMKM · BEKERJA SAMA DENGAN KADIN INDONESIA</text>
+        <text x="100" y="286" font-family="Noto Sans" font-size="124" font-weight="800" fill="#FFFFFF">KADIN <tspan fill="#F97316">DIGI</tspan></text>
+        <text x="100" y="366" font-family="Noto Sans" font-size="40" font-weight="700" fill="#DBEAFE">Si KADI — Sistem Kasir dan Inventori</text>
+        <text x="100" y="442" font-family="Noto Sans" font-size="27" fill="#CBD5E1">Platform Sistem Kasir Digital, Inventori, Database Pelanggan,</text>
+        <text x="100" y="484" font-family="Noto Sans" font-size="27" fill="#CBD5E1">Pemasaran Digital &amp; Analisis Kinerja untuk Perusahaan &amp; UMKM.</text>
 
-        <rect x="100" y="555" width="760" height="86" rx="18" fill="#08234D" stroke="#F97316" stroke-width="3"/>
-        <text x="138" y="610" font-family="Noto Sans" font-size="34" font-weight="800" fill="#FFFFFF">UMKM Naik Kelas  <tspan fill="#64748B">|</tspan>  <tspan fill="#FB923C">Bisnis Makin Cuan</tspan></text>
+        <rect x="100" y="544" width="760" height="86" rx="18" fill="#08234D" stroke="#F97316" stroke-width="3"/>
+        <text x="138" y="599" font-family="Noto Sans" font-size="34" font-weight="800" fill="#FFFFFF">UMKM Naik Kelas  <tspan fill="#64748B">|</tspan>  <tspan fill="#FB923C">Bisnis Makin Cuan</tspan></text>
 
-        <!-- Poster Preview Card Bottom-Left Above Subtitle -->
-        <rect x="920" y="510" width="380" height="380" rx="28" fill="#08234D" stroke="#1E3A8A" stroke-width="2"/>
+        <!-- Official KADIN Indonesia Cooperation Card -->
+        <rect x="910" y="505" width="390" height="385" rx="28" fill="#08234D" stroke="#1E40AF" stroke-width="2.5"/>
+        <text x="1105" y="555" text-anchor="middle" font-family="Noto Sans" font-size="18" font-weight="800" fill="#22D3EE" letter-spacing="2.5">BEKERJA SAMA DENGAN</text>
+        <rect x="995" y="578" width="220" height="220" rx="24" fill="#FFFFFF" fill-opacity="0.96"/>
+        <text x="1105" y="838" text-anchor="middle" font-family="Noto Sans" font-size="24" font-weight="800" fill="#FFFFFF">KADIN INDONESIA</text>
+        <text x="1105" y="868" text-anchor="middle" font-family="Noto Sans" font-size="16" fill="#93C5FD">Kamar Dagang dan Industri Indonesia</text>
 
         <!-- Right Hero Stage Panel for Animated Talking Si KADI -->
         <rect x="1340" y="120" width="490" height="770" rx="36" fill="#08234D" fill-opacity="0.88" stroke="#1E40AF" stroke-width="3"/>
-        <text x="1585" y="185" text-anchor="middle" font-family="Noto Sans" font-size="22" font-weight="800" fill="#22D3EE" letter-spacing="3">PRESENTER DIGITAL</text>
-        <text x="1585" y="750" text-anchor="middle" font-family="Noto Sans" font-size="40" font-weight="800" fill="#FFFFFF">Si KADI</text>
-        <text x="1585" y="792" text-anchor="middle" font-family="Noto Sans" font-size="22" font-weight="600" fill="#FB923C">Robot Sahabat UMKM</text>
+        <text x="1585" y="185" text-anchor="middle" font-family="Noto Sans" font-size="22" font-weight="800" fill="#22D3EE" letter-spacing="3">MASKOT INTERAKTIF</text>
+        <text x="1585" y="746" text-anchor="middle" font-family="Noto Sans" font-size="40" font-weight="800" fill="#FFFFFF">Si KADI</text>
+        <text x="1585" y="788" text-anchor="middle" font-family="Noto Sans" font-size="21" font-weight="600" fill="#FB923C">Sistem Kasir dan Inventori</text>
       </svg>`,
-      [{ input: posterSmall, left: 930, top: 520 }]
+      [{ input: kadinLogoCard, left: 1010, top: 593 }]
     )
   );
 
@@ -874,12 +886,21 @@ async function buildScenePlates() {
         <rect width="${W}" height="${H}" fill="url(#g7)"/>
 
         <text x="960" y="608" text-anchor="middle" font-family="Noto Sans" font-size="100" font-weight="800" fill="#FFFFFF">KADIN <tspan fill="#F97316">DIGI</tspan></text>
-        <text x="960" y="672" text-anchor="middle" font-family="Noto Sans" font-size="34" font-weight="700" fill="#DBEAFE">Si KADI — Robot Sahabat UMKM</text>
-        <text x="960" y="728" text-anchor="middle" font-family="Noto Sans" font-size="26" fill="#CBD5E1">Mari Bersinergi Bersama Kamar Dagang dan Industri Indonesia</text>
+        <text x="960" y="670" text-anchor="middle" font-family="Noto Sans" font-size="34" font-weight="700" fill="#DBEAFE">Si KADI — Sistem Kasir dan Inventori</text>
 
-        <rect x="400" y="772" width="1120" height="88" rx="20" fill="#08234D" stroke="#F97316" stroke-width="3"/>
-        <text x="960" y="830" text-anchor="middle" font-family="Noto Sans" font-size="42" font-weight="800" fill="#FFFFFF">UMKM Naik Kelas   <tspan fill="#64748B">|</tspan>   <tspan fill="#FB923C">Bisnis Makin Cuan</tspan></text>
-      </svg>`
+        <!-- Cooperation Partner Pill with Official KADIN Emblem -->
+        <rect x="1360" y="110" width="450" height="148" rx="22" fill="#08234D" fill-opacity="0.92" stroke="#1E40AF" stroke-width="2.5"/>
+        <rect x="1384" y="128" width="112" height="112" rx="16" fill="#FFFFFF"/>
+        <text x="1518" y="166" font-family="Noto Sans" font-size="16" font-weight="800" fill="#22D3EE" letter-spacing="2">BEKERJA SAMA DENGAN</text>
+        <text x="1518" y="202" font-family="Noto Sans" font-size="26" font-weight="800" fill="#FFFFFF">KADIN INDONESIA</text>
+        <text x="1518" y="228" font-family="Noto Sans" font-size="15" fill="#93C5FD">Kamar Dagang &amp; Industri</text>
+
+        <text x="960" y="726" text-anchor="middle" font-family="Noto Sans" font-size="26" fill="#CBD5E1">Mari Bersinergi Bersama Kamar Dagang dan Industri Indonesia</text>
+
+        <rect x="400" y="770" width="1120" height="88" rx="20" fill="#08234D" stroke="#F97316" stroke-width="3"/>
+        <text x="960" y="828" text-anchor="middle" font-family="Noto Sans" font-size="42" font-weight="800" fill="#FFFFFF">UMKM Naik Kelas   <tspan fill="#64748B">|</tspan>   <tspan fill="#FB923C">Bisnis Makin Cuan</tspan></text>
+      </svg>`,
+      [{ input: kadinLogoClosing, left: 1388, top: 132 }]
     )
   );
 
@@ -991,6 +1012,29 @@ for (const sc of sceneVoices) {
     subs.push(await renderSubtitleOverlay(line, sc.mode));
   }
   sceneSubtitles.push(subs);
+}
+
+// Export crisp 16:9 hero video poster image from Scene 1 (with Si KADI & KADIN cooperation card)
+{
+  const posterBuf = Buffer.allocUnsafe(W * H * 3);
+  scenePlates[0].copy(posterBuf);
+  const heroSprite = spritesHero[0][0];
+  alphaBlendRGBAOntoRGB(
+    posterBuf,
+    W,
+    H,
+    heroSprite.data,
+    heroSprite.width,
+    heroSprite.height,
+    Math.round(1585 - heroSprite.width / 2),
+    Math.round(435 - heroSprite.height / 2)
+  );
+  drawVoiceEqualizer(posterBuf, 1585, 855, 0.35, 1.2);
+  await sharp(posterBuf, { raw: { width: W, height: H, channels: 3 } })
+    .resize(1280, 720)
+    .png({ compressionLevel: 8 })
+    .toFile(OUT_POSTER);
+  console.log('   Saved updated 16:9 video poster:', OUT_POSTER);
 }
 
 // Helper to render one complete animated frame for a given scene index + local frame index

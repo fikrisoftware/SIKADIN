@@ -4,7 +4,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'KADIN DIGI — UMKM Naik Kelas, Bisnis Makin Cuan',
   description:
-    'KADIN DIGI bersama Si KADI: Sistem Kasir POS & Inventory, Database Pelanggan, Pemasaran Digital, serta Analisis Penjualan dan Kinerja untuk UMKM Indonesia.',
+    'KADIN DIGI bersama Si KADI (Sistem Kasir dan Inventori): Kasir POS, Inventori, Database Pelanggan, Pemasaran Digital, dan Analisis Kinerja bekerja sama dengan KADIN Indonesia.',
   openGraph: {
     title: 'KADIN DIGI — UMKM Naik Kelas, Bisnis Makin Cuan',
     description:
