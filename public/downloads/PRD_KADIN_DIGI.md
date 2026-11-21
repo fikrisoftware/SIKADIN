@@ -1,7 +1,7 @@
 # PRODUCT REQUIREMENTS DOCUMENT (PRD)
-## KADIN DIGI — Si KADI (Robot Sahabat UMKM)
+## KADIN DIGI — Si KADI (Sistem Kasir dan Inventori)
 **Tagline:** *UMKM Naik Kelas, Bisnis Makin Cuan*  
-**Disusun untuk:** Kamar Dagang dan Industri Indonesia (KADIN Indonesia)  
+**Bekerja Sama Dengan:** Kamar Dagang dan Industri Indonesia (KADIN Indonesia)  
 **Versi Dokumen:** 1.0  
 **Tanggal:** 19 November 2026  
 
@@ -16,7 +16,7 @@ Usaha Mikro, Kecil, dan Menengah (UMKM) merupakan tulang punggung perekonomian I
 3. **Data Pelanggan Tidak Terkelola**: Pelanggan setia dan reseller tidak terdokumentasi sehingga sulit dilakukan pemasaran berulang (*repeat order*).
 4. **Minimnya Pemasaran Digital Terukur**: Promosi masih dilakukan tanpa kode voucher terukur, sehingga dampak promo terhadap omzet tidak diketahui.
 
-**KADIN DIGI** hadir sebagai inisiatif platform digitalisasi kasir dan manajemen bisnis terpadu untuk pelaku UMKM di bawah naungan ekosistem **Kamar Dagang dan Industri Indonesia (KADIN Indonesia)**. Didampingi oleh maskot resmi **Si KADI (Robot Sahabat UMKM)**, aplikasi ini menyatukan **Sistem Kasir (POS), Manajemen Inventori, Database Pelanggan (CRM), Pemasaran Digital, dan Analisis Penjualan & Kinerja** dalam satu aplikasi web modern berbasis cloud yang ringan, cepat, dan mudah digunakan di komputer, tablet, maupun ponsel.
+**KADIN DIGI** hadir sebagai inisiatif platform digitalisasi kasir dan manajemen bisnis terpadu untuk pelaku UMKM yang bekerja sama dengan ekosistem **Kamar Dagang dan Industri Indonesia (KADIN Indonesia)**. Menghadirkan **Si KADI (Sistem Kasir dan Inventori)**, aplikasi ini menyatukan **Sistem Kasir (POS), Manajemen Inventori, Database Pelanggan (CRM), Pemasaran Digital, dan Analisis Penjualan & Kinerja** dalam satu aplikasi web modern berbasis cloud yang ringan, cepat, dan mudah digunakan di komputer, tablet, maupun ponsel.
 
 ---
 
@@ -25,7 +25,8 @@ Usaha Mikro, Kecil, dan Menengah (UMKM) merupakan tulang punggung perekonomian I
 | Atribut | Spesifikasi |
 | :--- | :--- |
 | **Nama Program** | KADIN DIGI |
-| **Nama Ikon / Maskot** | Si KADI — Robot Sahabat UMKM |
+| **Nama Ikon / Maskot** | Si KADI — Sistem Kasir dan Inventori |
+| **Mitra Kerja Sama** | Kamar Dagang dan Industri Indonesia (KADIN Indonesia) |
 | **Tagline Resmi** | UMKM Naik Kelas, Bisnis Makin Cuan |
 | **Identitas Visual** | Biru Gelap KADIN (`#051633` / `#08234D`) & Oranye DIGI (`#EA580C` / `#F97316`) |
 | **Target Ekosistem** | Pelaku UMKM binaan KADIN Pusat, KADIN Provinsi, dan KADIN Kabupaten/Kota |

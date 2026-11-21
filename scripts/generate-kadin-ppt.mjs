@@ -3,7 +3,7 @@ import PptxGenJS from 'pptxgenjs';
 
 const ROOT = process.cwd();
 const OUT_FILE = path.join(ROOT, 'public/downloads/Presentasi_KADIN_DIGI_KADIN_Indonesia.pptx');
-const POSTER_IMG = path.join(ROOT, 'public/assets/aistudio/image_0a4c7de4.png');
+const KADIN_LOGO = path.join(ROOT, 'public/assets/aistudio/image_33c655e3.png');
 const LOGO_IMG = path.join(ROOT, 'public/images/si-kadi-logo.jpg');
 const PROD_KOPI = path.join(ROOT, 'public/images/prod-kopi-susu.jpg');
 const PROD_BATIK = path.join(ROOT, 'public/images/prod-batik-scarf.jpg');
@@ -146,7 +146,7 @@ function addHeaderFooter(slide, slideNum, sectionLabel, dark = false) {
   );
 
   // Mascot subtitle
-  s.addText('Bersama Si KADI — Robot Sahabat UMKM', {
+  s.addText('Bersama Si KADI — Sistem Kasir dan Inventori', {
     x: 0.75,
     y: 2.45,
     w: 7.0,
@@ -203,22 +203,78 @@ function addHeaderFooter(slide, slideNum, sectionLabel, dark = false) {
     lineSpacingMultiple: 1.3,
   });
 
-  // Official Reference Poster Image on Right
+  // Right Visual Panel: Si KADI Mascot + Official KADIN Cooperation Badge
   s.addShape(pptx.ShapeType.roundRect, {
     x: 7.75,
-    y: 0.95,
+    y: 0.85,
     w: 4.95,
-    h: 4.95,
+    h: 5.85,
     fill: { color: C.navy },
     line: { color: '1E3A8A', width: 1.5 },
     rectRadius: 0.14,
   });
   s.addImage({
-    path: POSTER_IMG,
-    x: 7.85,
-    y: 1.05,
-    w: 4.75,
-    h: 4.75,
+    path: LOGO_IMG,
+    x: 8.85,
+    y: 1.15,
+    w: 2.75,
+    h: 2.75,
+  });
+  s.addText('Si KADI · Sistem Kasir dan Inventori', {
+    x: 7.95,
+    y: 4.02,
+    w: 4.55,
+    h: 0.38,
+    fontSize: 15,
+    bold: true,
+    color: C.orangeLight,
+    align: 'center',
+    fontFace: 'Arial',
+  });
+  s.addShape(pptx.ShapeType.roundRect, {
+    x: 8.15,
+    y: 4.62,
+    w: 4.15,
+    h: 1.72,
+    fill: { color: C.white },
+    line: { color: C.orangeBright, width: 1.2 },
+    rectRadius: 0.1,
+  });
+  s.addImage({
+    path: KADIN_LOGO,
+    x: 8.38,
+    y: 4.82,
+    w: 1.32,
+    h: 1.32,
+  });
+  s.addText('BEKERJA SAMA DENGAN', {
+    x: 9.85,
+    y: 4.92,
+    w: 2.35,
+    h: 0.28,
+    fontSize: 9.5,
+    bold: true,
+    color: C.orange,
+    fontFace: 'Arial',
+  });
+  s.addText('KADIN INDONESIA', {
+    x: 9.85,
+    y: 5.22,
+    w: 2.35,
+    h: 0.38,
+    fontSize: 14,
+    bold: true,
+    color: C.navyDark,
+    fontFace: 'Arial',
+  });
+  s.addText('Kamar Dagang dan Industri Indonesia', {
+    x: 9.85,
+    y: 5.6,
+    w: 2.35,
+    h: 0.45,
+    fontSize: 9.5,
+    color: C.slate600,
+    fontFace: 'Arial',
   });
 }
 
@@ -407,7 +463,7 @@ function addHeaderFooter(slide, slideNum, sectionLabel, dark = false) {
     align: 'center',
     fontFace: 'Arial',
   });
-  s.addText('Robot Sahabat UMKM', {
+  s.addText('Sistem Kasir dan Inventori', {
     x: 0.8,
     y: 5.1,
     w: 3.6,
@@ -1094,7 +1150,17 @@ function addHeaderFooter(slide, slideNum, sectionLabel, dark = false) {
     line: { type: 'none' },
   });
 
-  s.addImage({ path: LOGO_IMG, x: 5.75, y: 0.85, w: 1.85, h: 1.85 });
+  s.addImage({ path: LOGO_IMG, x: 4.45, y: 0.85, w: 1.85, h: 1.85 });
+  s.addShape(pptx.ShapeType.roundRect, {
+    x: 6.95,
+    y: 0.85,
+    w: 1.95,
+    h: 1.85,
+    fill: { color: C.white },
+    line: { color: C.orangeBright, width: 1.2 },
+    rectRadius: 0.12,
+  });
+  s.addImage({ path: KADIN_LOGO, x: 7.12, y: 0.97, w: 1.6, h: 1.6 });
 
   s.addText(
     [

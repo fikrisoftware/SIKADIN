@@ -112,7 +112,7 @@ export function DashboardShell() {
         <div className="min-w-0">
           <KadinDigiWordmark dark className="text-base block leading-none" />
           <p className="text-[11px] text-blue-200/80 mt-1 truncate">
-            Si KADI · Robot Sahabat UMKM
+            Si KADI · Sistem Kasir &amp; Inventori
           </p>
         </div>
       </div>
@@ -176,8 +176,24 @@ export function DashboardShell() {
         })}
       </nav>
 
-      {/* Account & Sign Out Footer */}
+      {/* Account & KADIN Cooperation Footer */}
       <div className="p-4 border-t border-white/10 space-y-3">
+        <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-white/6 border border-white/10">
+          <div className="w-8 h-8 rounded bg-white p-1 flex items-center justify-center shrink-0">
+            <img
+              src="/assets/aistudio/image_33c655e3.png"
+              alt="Logo KADIN Indonesia"
+              referrerPolicy="no-referrer"
+              className="w-full h-full object-contain"
+            />
+          </div>
+          <div className="min-w-0 leading-tight">
+            <p className="text-[10px] text-cyan-300 font-semibold uppercase tracking-wide">
+              Bekerja Sama Dengan
+            </p>
+            <p className="text-xs font-bold text-white truncate">KADIN Indonesia</p>
+          </div>
+        </div>
         <div className="min-w-0">
           <p className="text-xs font-semibold text-white truncate">
             {user?.displayName || 'Pemilik Usaha'}
@@ -299,7 +315,7 @@ export function DashboardShell() {
                 <SiKadiIcon size="md" variant="dark" />
                 <div>
                   <h2 className="text-base font-bold text-white">
-                    Halo, saya Si KADI — Robot Sahabat UMKM Anda
+                    Selamat Datang di Si KADI — Sistem Kasir dan Inventori
                   </h2>
                   <p className="text-sm text-blue-100/85 mt-1 max-w-2xl">
                     Akun KADIN DIGI Anda siap dipakai. Tambahkan produk pertama sendiri atau muat
