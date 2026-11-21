@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import {
   onAuthStateChanged,
   signInWithPopup,
@@ -22,13 +22,21 @@ import {
   OperationType,
   testConnection,
 } from '@/lib/firebase';
-import type {
-  Campaign,
-  Customer,
-  Product,
-  StockLog,
-  StoreProfile,
-  Transaction,
+import { ensureUserRoleProfile } from '@/lib/firestore-service';
+import {
+  BOOTSTRAP_SUPER_ADMIN_EMAIL,
+  getRolePermissions,
+  type Campaign,
+  type Customer,
+  type Product,
+  type RoleAuditLog,
+  type RoleInvite,
+  type RolePermissions,
+  type StockLog,
+  type StoreProfile,
+  type Transaction,
+  type UserRole,
+  type UserRoleProfile,
 } from '@/lib/types';
 
 interface AppDataContextValue {
@@ -37,12 +45,26 @@ interface AppDataContextValue {
   authError: string | null;
   signingIn: boolean;
   dataLoading: boolean;
+  roleProfile: UserRoleProfile | null;
+  actualRole: UserRole;
+  effectiveRole: UserRole;
+  previewRole: UserRole | null;
+  setPreviewRole: (role: UserRole | null) => void;
+  permissions: RolePermissions;
+  isAccountDisabled: boolean;
+  activeWorkspaceId: string;
+  setSelectedWorkspaceId: (ownerId: string | null) => void;
   storeProfile: StoreProfile | null;
   products: Product[];
   stockLogs: StockLog[];
   customers: Customer[];
   campaigns: Campaign[];
   transactions: Transaction[];
+  allStores: StoreProfile[];
+  hqTransactions: Transaction[];
+  roleProfiles: UserRoleProfile[];
+  roleInvites: RoleInvite[];
+  roleAuditLogs: RoleAuditLog[];
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -62,14 +84,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authReady, setAuthReady] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
-  const [loadedUid, setLoadedUid] = useState<string | null>(null);
 
+  const [roleProfile, setRoleProfile] = useState<UserRoleProfile | null>(null);
+  const [roleLoadedUid, setRoleLoadedUid] = useState<string | null>(null);
+  const [previewRole, setPreviewRoleState] = useState<UserRole | null>(null);
+  const [selectedWorkspaceId, setSelectedWorkspaceIdState] = useState<string | null>(null);
+
+  const [loadedWorkspaceKey, setLoadedWorkspaceKey] = useState<string | null>(null);
   const [storeProfile, setStoreProfile] = useState<StoreProfile | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [stockLogs, setStockLogs] = useState<StockLog[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+
+  const [allStores, setAllStores] = useState<StoreProfile[]>([]);
+  const [hqTransactions, setHqTransactions] = useState<Transaction[]>([]);
+  const [roleProfiles, setRoleProfiles] = useState<UserRoleProfile[]>([]);
+  const [roleInvites, setRoleInvites] = useState<RoleInvite[]>([]);
+  const [roleAuditLogs, setRoleAuditLogs] = useState<RoleAuditLog[]>([]);
+
   const [fatalError, setFatalError] = useState<Error | null>(null);
 
   useEffect(() => {
@@ -78,13 +112,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(firebaseUser);
       setAuthReady(true);
       if (!firebaseUser) {
+        setRoleProfile(null);
+        setRoleLoadedUid(null);
+        setPreviewRoleState(null);
+        setSelectedWorkspaceIdState(null);
+        setLoadedWorkspaceKey(null);
         setStoreProfile(null);
         setProducts([]);
         setStockLogs([]);
         setCustomers([]);
         setCampaigns([]);
         setTransactions([]);
-        setLoadedUid(null);
+        setAllStores([]);
+        setHqTransactions([]);
+        setRoleProfiles([]);
+        setRoleInvites([]);
+        setRoleAuditLogs([]);
       }
     });
     return () => unsub();
@@ -92,13 +135,82 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!authReady || !user) return;
-
+    let active = true;
     const uid = user.uid;
+    const email = user.email || '';
+    const displayName = user.displayName || '';
+
+    ensureUserRoleProfile({ uid, email, displayName }).catch((err) => {
+      if (!active) return;
+      setFatalError(err instanceof Error ? err : new Error(String(err)));
+    });
+
+    const unsubRole = onSnapshot(
+      doc(db, 'userRoles', uid),
+      (snap) => {
+        if (!active) return;
+        if (snap.exists()) {
+          setRoleProfile(snap.data() as UserRoleProfile);
+          setRoleLoadedUid(uid);
+        }
+      },
+      (err) => {
+        if (!active) return;
+        try {
+          handleFirestoreError(err, OperationType.GET, `userRoles/${uid}`);
+        } catch (wrapped) {
+          setFatalError(wrapped instanceof Error ? wrapped : new Error(String(wrapped)));
+        }
+      }
+    );
+
+    return () => {
+      active = false;
+      unsubRole();
+    };
+  }, [authReady, user]);
+
+  const isBootstrapSuper =
+    Boolean(user?.email) && user!.email!.toLowerCase() === BOOTSTRAP_SUPER_ADMIN_EMAIL;
+
+  const actualRole: UserRole = roleProfile?.role
+    ? roleProfile.role
+    : isBootstrapSuper
+      ? 'super_admin_pusat'
+      : 'pemilik';
+
+  const isAccountDisabled = Boolean(
+    roleProfile && roleProfile.status === 'Nonaktif' && !isBootstrapSuper
+  );
+
+  const activePreviewRole = actualRole === 'super_admin_pusat' ? previewRole : null;
+  const effectiveRole: UserRole = activePreviewRole ?? actualRole;
+  const permissions = useMemo(() => getRolePermissions(effectiveRole), [effectiveRole]);
+
+  const isActualHqAdmin = actualRole === 'admin_pusat' || actualRole === 'super_admin_pusat';
+
+  const activeWorkspaceId = useMemo(() => {
+    if (!user) return '';
+    if (actualRole === 'kasir') {
+      return roleProfile?.workspaceOwnerId || user.uid;
+    }
+    if (isActualHqAdmin && selectedWorkspaceId) {
+      return selectedWorkspaceId;
+    }
+    return roleProfile?.workspaceOwnerId || user.uid;
+  }, [actualRole, isActualHqAdmin, roleProfile?.workspaceOwnerId, selectedWorkspaceId, user]);
+
+  const isRoleReady = Boolean(user && roleLoadedUid === user.uid);
+
+  useEffect(() => {
+    if (!isRoleReady || !user || !activeWorkspaceId || isAccountDisabled) return;
+
+    const workspaceKey = `${user.uid}:${activeWorkspaceId}`;
     let loadedMask = 0;
     const markLoaded = (bit: number) => {
       loadedMask |= bit;
       if (loadedMask === 63) {
-        setLoadedUid(uid);
+        setLoadedWorkspaceKey(workspaceKey);
       }
     };
 
@@ -110,23 +222,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    // 1. Store Profile
     const unsubStore = onSnapshot(
-      doc(db, 'stores', uid),
+      doc(db, 'stores', activeWorkspaceId),
       (snap) => {
-        if (snap.exists()) {
-          setStoreProfile(snap.data() as StoreProfile);
-        } else {
-          setStoreProfile(null);
-        }
+        setStoreProfile(snap.exists() ? (snap.data() as StoreProfile) : null);
         markLoaded(1);
       },
-      (err) => captureError(err, OperationType.GET, `stores/${uid}`)
+      (err) => captureError(err, OperationType.GET, `stores/${activeWorkspaceId}`)
     );
 
-    // 2. Products
     const unsubProducts = onSnapshot(
-      query(collection(db, 'products'), where('ownerId', '==', uid)),
+      query(collection(db, 'products'), where('ownerId', '==', activeWorkspaceId)),
       (snap) => {
         const list: Product[] = snap.docs.map((d) => ({
           id: d.id,
@@ -138,9 +244,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (err) => captureError(err, OperationType.LIST, 'products')
     );
 
-    // 3. Stock Logs
     const unsubLogs = onSnapshot(
-      query(collection(db, 'stockLogs'), where('ownerId', '==', uid)),
+      query(collection(db, 'stockLogs'), where('ownerId', '==', activeWorkspaceId)),
       (snap) => {
         const list: StockLog[] = snap.docs.map((d) => ({
           id: d.id,
@@ -152,9 +257,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (err) => captureError(err, OperationType.LIST, 'stockLogs')
     );
 
-    // 4. Customers
     const unsubCustomers = onSnapshot(
-      query(collection(db, 'customers'), where('ownerId', '==', uid)),
+      query(collection(db, 'customers'), where('ownerId', '==', activeWorkspaceId)),
       (snap) => {
         const list: Customer[] = snap.docs.map((d) => ({
           id: d.id,
@@ -166,9 +270,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (err) => captureError(err, OperationType.LIST, 'customers')
     );
 
-    // 5. Campaigns
     const unsubCampaigns = onSnapshot(
-      query(collection(db, 'campaigns'), where('ownerId', '==', uid)),
+      query(collection(db, 'campaigns'), where('ownerId', '==', activeWorkspaceId)),
       (snap) => {
         const list: Campaign[] = snap.docs.map((d) => ({
           id: d.id,
@@ -180,9 +283,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (err) => captureError(err, OperationType.LIST, 'campaigns')
     );
 
-    // 6. Transactions
     const unsubTransactions = onSnapshot(
-      query(collection(db, 'transactions'), where('ownerId', '==', uid)),
+      query(collection(db, 'transactions'), where('ownerId', '==', activeWorkspaceId)),
       (snap) => {
         const list: Transaction[] = snap.docs.map((d) => ({
           id: d.id,
@@ -202,7 +304,104 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       unsubCampaigns();
       unsubTransactions();
     };
-  }, [authReady, user]);
+  }, [activeWorkspaceId, isAccountDisabled, isRoleReady, user]);
+
+  useEffect(() => {
+    if (!isRoleReady || !user || isAccountDisabled || actualRole === 'kasir') return;
+
+    const uid = user.uid;
+    const unsubs: Array<() => void> = [];
+
+    const captureError = (err: unknown, op: OperationType, path: string) => {
+      try {
+        handleFirestoreError(err, op, path);
+      } catch (wrapped) {
+        setFatalError(wrapped instanceof Error ? wrapped : new Error(String(wrapped)));
+      }
+    };
+
+    const rolesQuery = isActualHqAdmin
+      ? collection(db, 'userRoles')
+      : query(collection(db, 'userRoles'), where('workspaceOwnerId', '==', uid));
+
+    unsubs.push(
+      onSnapshot(
+        rolesQuery,
+        (snap) => {
+          const list: UserRoleProfile[] = snap.docs.map((d) => d.data() as UserRoleProfile);
+          setRoleProfiles(sortByTimestampDesc(list));
+        },
+        (err) => captureError(err, OperationType.LIST, 'userRoles')
+      )
+    );
+
+    const invitesQuery = isActualHqAdmin
+      ? collection(db, 'roleInvites')
+      : query(collection(db, 'roleInvites'), where('workspaceOwnerId', '==', uid));
+
+    unsubs.push(
+      onSnapshot(
+        invitesQuery,
+        (snap) => {
+          const list: RoleInvite[] = snap.docs.map((d) => ({
+            id: d.id,
+            ...(d.data() as Omit<RoleInvite, 'id'>),
+          }));
+          setRoleInvites(sortByTimestampDesc(list));
+        },
+        (err) => captureError(err, OperationType.LIST, 'roleInvites')
+      )
+    );
+
+    const auditsQuery = isActualHqAdmin
+      ? collection(db, 'roleAuditLogs')
+      : query(collection(db, 'roleAuditLogs'), where('workspaceOwnerId', '==', uid));
+
+    unsubs.push(
+      onSnapshot(
+        auditsQuery,
+        (snap) => {
+          const list: RoleAuditLog[] = snap.docs.map((d) => ({
+            id: d.id,
+            ...(d.data() as Omit<RoleAuditLog, 'id'>),
+          }));
+          setRoleAuditLogs(sortByTimestampDesc(list));
+        },
+        (err) => captureError(err, OperationType.LIST, 'roleAuditLogs')
+      )
+    );
+
+    if (isActualHqAdmin) {
+      unsubs.push(
+        onSnapshot(
+          collection(db, 'stores'),
+          (snap) => {
+            const list: StoreProfile[] = snap.docs.map((d) => d.data() as StoreProfile);
+            setAllStores(sortByTimestampDesc(list));
+          },
+          (err) => captureError(err, OperationType.LIST, 'stores')
+        )
+      );
+
+      unsubs.push(
+        onSnapshot(
+          collection(db, 'transactions'),
+          (snap) => {
+            const list: Transaction[] = snap.docs.map((d) => ({
+              id: d.id,
+              ...(d.data() as Omit<Transaction, 'id'>),
+            }));
+            setHqTransactions(sortByTimestampDesc(list));
+          },
+          (err) => captureError(err, OperationType.LIST, 'transactions')
+        )
+      );
+    }
+
+    return () => {
+      for (const fn of unsubs) fn();
+    };
+  }, [actualRole, isAccountDisabled, isActualHqAdmin, isRoleReady, user]);
 
   if (fatalError) {
     throw fatalError;
@@ -231,7 +430,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signOut(auth);
   };
 
-  const dataLoading = Boolean(user && loadedUid !== user.uid);
+  const setPreviewRole = (role: UserRole | null) => {
+    if (actualRole !== 'super_admin_pusat') return;
+    setPreviewRoleState(role);
+  };
+
+  const setSelectedWorkspaceId = (ownerId: string | null) => {
+    if (!isActualHqAdmin) return;
+    setSelectedWorkspaceIdState(ownerId);
+  };
+
+  const expectedWorkspaceKey = user && activeWorkspaceId ? `${user.uid}:${activeWorkspaceId}` : null;
+  const dataLoading = Boolean(
+    user &&
+      !isAccountDisabled &&
+      (!isRoleReady || loadedWorkspaceKey !== expectedWorkspaceKey)
+  );
 
   return (
     <AppDataContext.Provider
@@ -241,12 +455,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authError,
         signingIn,
         dataLoading,
+        roleProfile,
+        actualRole,
+        effectiveRole,
+        previewRole: activePreviewRole,
+        setPreviewRole,
+        permissions,
+        isAccountDisabled,
+        activeWorkspaceId,
+        setSelectedWorkspaceId,
         storeProfile,
         products,
         stockLogs,
         customers,
         campaigns,
         transactions,
+        allStores: isActualHqAdmin ? allStores : [],
+        hqTransactions: isActualHqAdmin ? hqTransactions : [],
+        roleProfiles: actualRole === 'kasir' ? [] : roleProfiles,
+        roleInvites: actualRole === 'kasir' ? [] : roleInvites,
+        roleAuditLogs: actualRole === 'kasir' ? [] : roleAuditLogs,
         signInWithGoogle,
         logout,
       }}

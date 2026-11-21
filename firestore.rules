@@ -7,7 +7,7 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // === Global Hardened Primitives ===
+    // === Global Hardened Primitives & 4-Tier RBAC Identity ===
     function isSignedIn() {
       return request.auth != null;
     }
@@ -32,13 +32,75 @@ service cloud.firestore {
       return isVerifiedUser() && request.auth.uid == uid;
     }
 
-    // === Entity Validation Blueprints ===
+    // Bootstrapped Root Super Admin Kantor Pusat (Email Verified Mandatory)
+    function isBootstrapSuperAdmin() {
+      return isVerifiedUser()
+        && request.auth.token.email == 'recehanfikri@gmail.com';
+    }
+
+    function hasRoleDoc() {
+      return exists(/databases/$(database)/documents/userRoles/$(request.auth.uid));
+    }
+
+    function roleDoc() {
+      return get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data;
+    }
+
+    function isActiveRole() {
+      return hasRoleDoc() && roleDoc().status == 'Aktif';
+    }
+
+    function isSuperAdminPusat() {
+      return isBootstrapSuperAdmin()
+        || (isVerifiedUser() && isActiveRole() && roleDoc().role == 'super_admin_pusat');
+    }
+
+    function isAdminPusat() {
+      return isVerifiedUser() && isActiveRole() && roleDoc().role == 'admin_pusat';
+    }
+
+    function isHqAdmin() {
+      return isSuperAdminPusat() || isAdminPusat();
+    }
+
+    function isAssignedCashierOf(storeOwnerId) {
+      return isVerifiedUser()
+        && isActiveRole()
+        && roleDoc().role == 'kasir'
+        && roleDoc().workspaceOwnerId == storeOwnerId;
+    }
+
+    function isActiveStoreOwner(storeOwnerId) {
+      return isOwnerId(storeOwnerId)
+        && (!hasRoleDoc() || (roleDoc().status == 'Aktif' && roleDoc().role != 'kasir'));
+    }
+
+    function canManageStore(storeOwnerId) {
+      return isActiveStoreOwner(storeOwnerId) || isHqAdmin();
+    }
+
+    function canOperateStore(storeOwnerId) {
+      return canManageStore(storeOwnerId) || isAssignedCashierOf(storeOwnerId);
+    }
+
+    function myEmailLower() {
+      return request.auth.token.email.lower();
+    }
+
+    function myInviteId() {
+      return 'inv_' + myEmailLower().replace('@', '_at_').replace('\\.', '_dot_').replace('[^a-z0-9_\\-]', '_');
+    }
+
+    function myInvitePath() {
+      return /databases/$(database)/documents/roleInvites/$(myInviteId());
+    }
+
+    // === Entity Validation Blueprints (Anti-Update-Gap) ===
 
     function isValidStoreProfile(data) {
       return data.keys().hasAll(['ownerId', 'storeName', 'category', 'phone', 'address', 'tagline', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly(['ownerId', 'storeName', 'category', 'phone', 'address', 'tagline', 'createdAt', 'updatedAt'])
         && isValidId(data.ownerId)
-        && data.ownerId == request.auth.uid
         && data.storeName is string && data.storeName.size() >= 1 && data.storeName.size() <= 120
         && data.category is string && data.category.size() >= 1 && data.category.size() <= 40
         && data.category in ['Kuliner & F&B', 'Fashion & Batik', 'Kriya & Kerajinan', 'Sembako & Ritel', 'Jasa & Layanan', 'Lainnya']
@@ -53,7 +115,6 @@ service cloud.firestore {
       return data.keys().hasAll(['ownerId', 'sku', 'name', 'category', 'costPrice', 'sellPrice', 'stock', 'minStock', 'unit', 'imageUrl', 'isActive', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly(['ownerId', 'sku', 'name', 'category', 'costPrice', 'sellPrice', 'stock', 'minStock', 'unit', 'imageUrl', 'isActive', 'createdAt', 'updatedAt'])
         && isValidId(data.ownerId)
-        && data.ownerId == request.auth.uid
         && data.sku is string && data.sku.size() >= 1 && data.sku.size() <= 40 && data.sku.matches('^[a-zA-Z0-9_\\-\\.]+$')
         && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
         && data.category is string && data.category.size() >= 1 && data.category.size() <= 30
@@ -73,7 +134,6 @@ service cloud.firestore {
       return data.keys().hasAll(['ownerId', 'productId', 'productName', 'type', 'delta', 'stockAfter', 'note', 'createdAt'])
         && data.keys().hasOnly(['ownerId', 'productId', 'productName', 'type', 'delta', 'stockAfter', 'note', 'createdAt'])
         && isValidId(data.ownerId)
-        && data.ownerId == request.auth.uid
         && isValidId(data.productId)
         && data.productName is string && data.productName.size() >= 1 && data.productName.size() <= 120
         && data.type is string && data.type.size() >= 1 && data.type.size() <= 20
@@ -88,7 +148,6 @@ service cloud.firestore {
       return data.keys().hasAll(['ownerId', 'name', 'phone', 'email', 'segment', 'notes', 'totalSpent', 'totalOrders', 'loyaltyPoints', 'lastOrderAt', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly(['ownerId', 'name', 'phone', 'email', 'segment', 'notes', 'totalSpent', 'totalOrders', 'loyaltyPoints', 'lastOrderAt', 'createdAt', 'updatedAt'])
         && isValidId(data.ownerId)
-        && data.ownerId == request.auth.uid
         && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
         && data.phone is string && data.phone.size() >= 6 && data.phone.size() <= 25
         && data.email is string && data.email.size() <= 120
@@ -107,7 +166,6 @@ service cloud.firestore {
       return data.keys().hasAll(['ownerId', 'title', 'channel', 'targetSegment', 'promoCode', 'discountPercent', 'message', 'status', 'startDate', 'endDate', 'targetCount', 'redemptions', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly(['ownerId', 'title', 'channel', 'targetSegment', 'promoCode', 'discountPercent', 'message', 'status', 'startDate', 'endDate', 'targetCount', 'redemptions', 'createdAt', 'updatedAt'])
         && isValidId(data.ownerId)
-        && data.ownerId == request.auth.uid
         && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
         && data.channel is string && data.channel.size() >= 1 && data.channel.size() <= 30
         && data.channel in ['WhatsApp', 'Instagram', 'TikTok', 'Katalog Digital', 'Voucher Kasir']
@@ -144,7 +202,6 @@ service cloud.firestore {
       return data.keys().hasAll(['ownerId', 'receiptNo', 'customerId', 'customerName', 'items', 'itemCount', 'subtotal', 'discount', 'promoCode', 'total', 'totalCost', 'profit', 'paymentMethod', 'amountPaid', 'changeAmount', 'status', 'saleDate', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly(['ownerId', 'receiptNo', 'customerId', 'customerName', 'items', 'itemCount', 'subtotal', 'discount', 'promoCode', 'total', 'totalCost', 'profit', 'paymentMethod', 'amountPaid', 'changeAmount', 'status', 'saleDate', 'createdAt', 'updatedAt'])
         && isValidId(data.ownerId)
-        && data.ownerId == request.auth.uid
         && data.receiptNo is string && data.receiptNo.size() >= 4 && data.receiptNo.size() <= 40 && data.receiptNo.matches('^[A-Z0-9_\\-]+$')
         && data.customerId is string && data.customerId.size() <= 128
         && data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 120
@@ -168,20 +225,66 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
+    function isValidUserRoleProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'workspaceOwnerId', 'storeName', 'status', 'assignedBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'workspaceOwnerId', 'storeName', 'status', 'assignedBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 120
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.role is string && data.role in ['kasir', 'pemilik', 'admin_pusat', 'super_admin_pusat']
+        && isValidId(data.workspaceOwnerId)
+        && data.storeName is string && data.storeName.size() <= 120
+        && data.status is string && data.status in ['Aktif', 'Nonaktif']
+        && data.assignedBy is string && data.assignedBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRoleInvite(data) {
+      return data.keys().hasAll(['email', 'role', 'workspaceOwnerId', 'storeName', 'status', 'invitedByUid', 'invitedByName', 'note', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['email', 'role', 'workspaceOwnerId', 'storeName', 'status', 'invitedByUid', 'invitedByName', 'note', 'createdAt', 'updatedAt'])
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 120
+        && data.role is string && data.role in ['kasir', 'pemilik', 'admin_pusat', 'super_admin_pusat']
+        && isValidId(data.workspaceOwnerId)
+        && data.storeName is string && data.storeName.size() <= 120
+        && data.status is string && data.status in ['Menunggu', 'Diterima', 'Dicabut']
+        && isValidId(data.invitedByUid)
+        && data.invitedByName is string && data.invitedByName.size() >= 1 && data.invitedByName.size() <= 120
+        && data.note is string && data.note.size() <= 240
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRoleAuditLog(data) {
+      return data.keys().hasAll(['actorUid', 'actorName', 'actorRole', 'targetEmail', 'targetRole', 'workspaceOwnerId', 'action', 'note', 'createdAt'])
+        && data.keys().hasOnly(['actorUid', 'actorName', 'actorRole', 'targetEmail', 'targetRole', 'workspaceOwnerId', 'action', 'note', 'createdAt'])
+        && isValidId(data.actorUid)
+        && data.actorUid == request.auth.uid
+        && data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 120
+        && data.actorRole is string && data.actorRole in ['kasir', 'pemilik', 'admin_pusat', 'super_admin_pusat']
+        && data.targetEmail is string && data.targetEmail.size() >= 3 && data.targetEmail.size() <= 120
+        && data.targetRole is string && data.targetRole in ['kasir', 'pemilik', 'admin_pusat', 'super_admin_pusat']
+        && isValidId(data.workspaceOwnerId)
+        && data.action is string && data.action.size() >= 2 && data.action.size() <= 80
+        && data.note is string && data.note.size() <= 240
+        && data.createdAt is timestamp;
+    }
+
     // === Collection Rules ===
 
     // 1. Store Profile (Contains PII: phone, address)
     match /stores/{ownerId} {
-      allow get: if isOwnerId(ownerId) && isValidId(ownerId);
-      allow list: if false;
-      allow create: if isOwnerId(ownerId)
-        && isValidId(ownerId)
+      allow get: if isValidId(ownerId) && canOperateStore(ownerId);
+      allow list: if isHqAdmin();
+      allow create: if isValidId(ownerId)
         && isValidStoreProfile(incoming())
+        && incoming().ownerId == ownerId
+        && canManageStore(ownerId)
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
-      allow update: if isOwnerId(ownerId)
-        && isValidId(ownerId)
+      allow update: if isValidId(ownerId)
         && isValidStoreProfile(incoming())
+        && canManageStore(ownerId)
         && incoming().ownerId == existing().ownerId
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
@@ -191,103 +294,113 @@ service cloud.firestore {
 
     // 2. Products / Inventory
     match /products/{productId} {
-      allow get: if isVerifiedUser() && isValidId(productId) && existing().ownerId == request.auth.uid;
-      allow list: if isVerifiedUser() && existing().ownerId == request.auth.uid;
-      allow create: if isVerifiedUser()
-        && isValidId(productId)
+      allow get: if isValidId(productId) && canOperateStore(existing().ownerId);
+      allow list: if canOperateStore(existing().ownerId);
+      allow create: if isValidId(productId)
         && isValidProduct(incoming())
+        && canManageStore(incoming().ownerId)
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
-      allow update: if isVerifiedUser()
-        && isValidId(productId)
+      allow update: if isValidId(productId)
         && isValidProduct(incoming())
-        && existing().ownerId == request.auth.uid
         && incoming().ownerId == existing().ownerId
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
         && (
-          // Action: Edit Product Details
-          incoming().diff(existing()).affectedKeys().hasOnly(['sku', 'name', 'category', 'costPrice', 'sellPrice', 'stock', 'minStock', 'unit', 'imageUrl', 'isActive', 'updatedAt']) ||
-          // Action: Stock Adjustment / POS Sale Stock Decrement
-          incoming().diff(existing()).affectedKeys().hasOnly(['stock', 'updatedAt'])
+          // Tier 1: Pemilik / HQ Admin full product & stock edits
+          (canManageStore(existing().ownerId) && (
+            incoming().diff(existing()).affectedKeys().hasOnly(['sku', 'name', 'category', 'costPrice', 'sellPrice', 'stock', 'minStock', 'unit', 'imageUrl', 'isActive', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['stock', 'updatedAt'])
+          )) ||
+          // Tier 2: Kasir can ONLY decrement stock during POS checkout
+          (isAssignedCashierOf(existing().ownerId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['stock', 'updatedAt'])
+            && incoming().stock < existing().stock)
         );
-      allow delete: if isVerifiedUser() && isValidId(productId) && existing().ownerId == request.auth.uid;
+      allow delete: if isValidId(productId) && canManageStore(existing().ownerId);
     }
 
     // 3. Stock Logs (Immutable Audit Log)
     match /stockLogs/{logId} {
-      allow get: if isVerifiedUser() && isValidId(logId) && existing().ownerId == request.auth.uid;
-      allow list: if isVerifiedUser() && existing().ownerId == request.auth.uid;
-      allow create: if isVerifiedUser()
-        && isValidId(logId)
+      allow get: if isValidId(logId) && canOperateStore(existing().ownerId);
+      allow list: if canOperateStore(existing().ownerId);
+      allow create: if isValidId(logId)
         && isValidStockLog(incoming())
         && incoming().createdAt == request.time
         && exists(/databases/$(database)/documents/products/$(incoming().productId))
-        && get(/databases/$(database)/documents/products/$(incoming().productId)).data.ownerId == request.auth.uid;
+        && get(/databases/$(database)/documents/products/$(incoming().productId)).data.ownerId == incoming().ownerId
+        && (
+          canManageStore(incoming().ownerId) ||
+          (isAssignedCashierOf(incoming().ownerId) && incoming().type == 'penjualan' && incoming().delta < 0)
+        );
       allow update: if false;
       allow delete: if false;
     }
 
-    // 4. Customers (Contains PII: phone, email — Strictly Owner-Isolated)
+    // 4. Customers (Contains PII: phone, email — Strictly Scoped by Store Role / HQ)
     match /customers/{customerId} {
-      allow get: if isVerifiedUser() && isValidId(customerId) && existing().ownerId == request.auth.uid;
-      allow list: if isVerifiedUser() && existing().ownerId == request.auth.uid;
-      allow create: if isVerifiedUser()
-        && isValidId(customerId)
+      allow get: if isValidId(customerId) && canOperateStore(existing().ownerId);
+      allow list: if canOperateStore(existing().ownerId);
+      allow create: if isValidId(customerId)
         && isValidCustomer(incoming())
+        && canOperateStore(incoming().ownerId)
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
-      allow update: if isVerifiedUser()
-        && isValidId(customerId)
+      allow update: if isValidId(customerId)
         && isValidCustomer(incoming())
-        && existing().ownerId == request.auth.uid
         && incoming().ownerId == existing().ownerId
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
         && (
-          // Action: Edit Customer Profile
-          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'email', 'segment', 'notes', 'updatedAt']) ||
-          // Action: POS Checkout Stats & Loyalty Update
-          incoming().diff(existing()).affectedKeys().hasOnly(['totalSpent', 'totalOrders', 'loyaltyPoints', 'lastOrderAt', 'segment', 'updatedAt'])
+          // Tier 1: Pemilik / HQ Admin full customer profile or stats edit
+          (canManageStore(existing().ownerId) && (
+            incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'email', 'segment', 'notes', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['totalSpent', 'totalOrders', 'loyaltyPoints', 'lastOrderAt', 'segment', 'updatedAt'])
+          )) ||
+          // Tier 2: Kasir can ONLY update purchase stats & loyalty on POS checkout
+          (isAssignedCashierOf(existing().ownerId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['totalSpent', 'totalOrders', 'loyaltyPoints', 'lastOrderAt', 'segment', 'updatedAt']))
         );
-      allow delete: if isVerifiedUser() && isValidId(customerId) && existing().ownerId == request.auth.uid;
+      allow delete: if isValidId(customerId) && canManageStore(existing().ownerId);
     }
 
     // 5. Digital Marketing Campaigns & Vouchers
     match /campaigns/{campaignId} {
-      allow get: if isVerifiedUser() && isValidId(campaignId) && existing().ownerId == request.auth.uid;
-      allow list: if isVerifiedUser() && existing().ownerId == request.auth.uid;
-      allow create: if isVerifiedUser()
-        && isValidId(campaignId)
+      allow get: if isValidId(campaignId) && canOperateStore(existing().ownerId);
+      allow list: if canOperateStore(existing().ownerId);
+      allow create: if isValidId(campaignId)
         && isValidCampaign(incoming())
+        && canManageStore(incoming().ownerId)
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
-      allow update: if isVerifiedUser()
-        && isValidId(campaignId)
+      allow update: if isValidId(campaignId)
         && isValidCampaign(incoming())
-        && existing().ownerId == request.auth.uid
         && existing().status != 'Selesai'
         && incoming().ownerId == existing().ownerId
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
         && (
-          // Action: Edit Campaign Details
-          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'channel', 'targetSegment', 'promoCode', 'discountPercent', 'message', 'status', 'startDate', 'endDate', 'targetCount', 'updatedAt']) ||
-          // Action: Toggle Campaign Status
-          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) ||
-          // Action: Increment Voucher Redemptions on POS Checkout
-          (incoming().diff(existing()).affectedKeys().hasOnly(['redemptions', 'updatedAt']) && incoming().redemptions == existing().redemptions + 1)
+          // Tier 1: Pemilik / HQ Admin campaign management
+          (canManageStore(existing().ownerId) && (
+            incoming().diff(existing()).affectedKeys().hasOnly(['title', 'channel', 'targetSegment', 'promoCode', 'discountPercent', 'message', 'status', 'startDate', 'endDate', 'targetCount', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) ||
+            (incoming().diff(existing()).affectedKeys().hasOnly(['redemptions', 'updatedAt']) && incoming().redemptions == existing().redemptions + 1)
+          )) ||
+          // Tier 2: Kasir can ONLY increment voucher redemptions on POS checkout
+          (isAssignedCashierOf(existing().ownerId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['redemptions', 'updatedAt'])
+            && incoming().redemptions == existing().redemptions + 1)
         );
-      allow delete: if isVerifiedUser() && isValidId(campaignId) && existing().ownerId == request.auth.uid;
+      allow delete: if isValidId(campaignId) && canManageStore(existing().ownerId);
     }
 
-    // 6. POS Transactions
+    // 6. POS Transactions (Kasir can create sales, ONLY Pemilik / HQ Admin can void/cancel)
     match /transactions/{transactionId} {
-      allow get: if isVerifiedUser() && isValidId(transactionId) && existing().ownerId == request.auth.uid;
-      allow list: if isVerifiedUser() && existing().ownerId == request.auth.uid;
-      allow create: if isVerifiedUser()
-        && isValidId(transactionId)
+      allow get: if isValidId(transactionId) && canOperateStore(existing().ownerId);
+      allow list: if canOperateStore(existing().ownerId);
+      allow create: if isValidId(transactionId)
         && isValidTransaction(incoming())
+        && canOperateStore(incoming().ownerId)
         && incoming().status == 'Selesai'
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time
@@ -296,19 +409,149 @@ service cloud.firestore {
           (
             isValidId(incoming().customerId)
             && exists(/databases/$(database)/documents/customers/$(incoming().customerId))
-            && get(/databases/$(database)/documents/customers/$(incoming().customerId)).data.ownerId == request.auth.uid
+            && get(/databases/$(database)/documents/customers/$(incoming().customerId)).data.ownerId == incoming().ownerId
           )
         );
-      allow update: if isVerifiedUser()
-        && isValidId(transactionId)
+      allow update: if isValidId(transactionId)
         && isValidTransaction(incoming())
-        && existing().ownerId == request.auth.uid
+        && canManageStore(existing().ownerId)
         && existing().status == 'Selesai'
         && incoming().status == 'Dibatalkan'
         && incoming().ownerId == existing().ownerId
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
         && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // 7. RBAC User Role Profiles (Zero Self-Escalation — PII Isolated)
+    match /userRoles/{targetUid} {
+      allow get: if isValidId(targetUid)
+        && (isOwnerId(targetUid) || existing().workspaceOwnerId == request.auth.uid || isHqAdmin());
+      allow list: if isVerifiedUser()
+        && (existing().workspaceOwnerId == request.auth.uid || isHqAdmin());
+      allow create: if isVerifiedUser()
+        && isValidId(targetUid)
+        && targetUid == request.auth.uid
+        && isValidUserRoleProfile(incoming())
+        && incoming().uid == request.auth.uid
+        && incoming().email == myEmailLower()
+        && incoming().status == 'Aktif'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          // Bootstrapped Super Admin Kantor Pusat
+          (isBootstrapSuperAdmin() && incoming().role == 'super_admin_pusat' && incoming().workspaceOwnerId == request.auth.uid) ||
+          // Claiming an active trusted invitation created by an authorized manager/admin
+          (exists(myInvitePath())
+            && get(myInvitePath()).data.status == 'Menunggu'
+            && get(myInvitePath()).data.email == myEmailLower()
+            && incoming().role == get(myInvitePath()).data.role
+            && incoming().workspaceOwnerId == get(myInvitePath()).data.workspaceOwnerId) ||
+          // Standard UMKM merchant self-registration (strictly restricted to own pemilik workspace)
+          (incoming().role == 'pemilik' && incoming().workspaceOwnerId == request.auth.uid)
+        );
+      allow update: if isVerifiedUser()
+        && isValidId(targetUid)
+        && isValidUserRoleProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Self: Display name sync only (NEVER role, status, or workspace)
+          (isOwnerId(targetUid)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt'])) ||
+          // Pemilik: Can ONLY activate/deactivate kasir staff assigned to their own store
+          (isActiveStoreOwner(existing().workspaceOwnerId)
+            && existing().role == 'kasir'
+            && targetUid != request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'assignedBy', 'updatedAt'])) ||
+          // Admin Kantor Pusat: Can manage kasir & pemilik roles/status (NEVER elevate to HQ or modify HQ admins)
+          (isAdminPusat()
+            && existing().role in ['kasir', 'pemilik']
+            && incoming().role in ['kasir', 'pemilik']
+            && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'workspaceOwnerId', 'storeName', 'status', 'assignedBy', 'updatedAt'])) ||
+          // Super Admin Kantor Pusat: Full 4-tier RBAC authority
+          (isSuperAdminPusat()
+            && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'workspaceOwnerId', 'storeName', 'status', 'assignedBy', 'updatedAt']))
+        );
+      allow delete: if false;
+    }
+
+    // 8. RBAC Role Invitations (Pre-Login Role Assignment by Email)
+    match /roleInvites/{inviteId} {
+      allow get: if isVerifiedUser()
+        && isValidId(inviteId)
+        && (
+          inviteId == myInviteId() ||
+          (resource != null && existing().email == myEmailLower()) ||
+          (resource != null && existing().workspaceOwnerId == request.auth.uid) ||
+          isHqAdmin()
+        );
+      allow list: if isVerifiedUser()
+        && (existing().workspaceOwnerId == request.auth.uid || isHqAdmin());
+      allow create: if isVerifiedUser()
+        && isValidId(inviteId)
+        && isValidRoleInvite(incoming())
+        && incoming().invitedByUid == request.auth.uid
+        && incoming().status == 'Menunggu'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          // Pemilik can ONLY invite Kasir to their own store
+          (isActiveStoreOwner(incoming().workspaceOwnerId) && incoming().role == 'kasir') ||
+          // Admin Kantor Pusat can invite Kasir or Pemilik
+          (isAdminPusat() && incoming().role in ['kasir', 'pemilik']) ||
+          // Super Admin Kantor Pusat can invite any of the 4 roles
+          isSuperAdminPusat()
+        );
+      allow update: if isVerifiedUser()
+        && isValidId(inviteId)
+        && isValidRoleInvite(incoming())
+        && incoming().email == existing().email
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Invited user claims pending invite upon first login
+          (existing().email == myEmailLower()
+            && existing().status == 'Menunggu'
+            && incoming().status == 'Diterima'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])) ||
+          // Pemilik revokes or re-issues kasir invite for own store
+          (isActiveStoreOwner(existing().workspaceOwnerId)
+            && existing().role == 'kasir'
+            && incoming().role == 'kasir'
+            && incoming().workspaceOwnerId == existing().workspaceOwnerId
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'storeName', 'note', 'invitedByUid', 'invitedByName', 'updatedAt'])) ||
+          // Admin Kantor Pusat updates/revokes kasir/pemilik invites
+          (isAdminPusat()
+            && existing().role in ['kasir', 'pemilik']
+            && incoming().role in ['kasir', 'pemilik']
+            && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'workspaceOwnerId', 'storeName', 'status', 'note', 'invitedByUid', 'invitedByName', 'updatedAt'])) ||
+          // Super Admin Kantor Pusat full invite management
+          (isSuperAdminPusat()
+            && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'workspaceOwnerId', 'storeName', 'status', 'note', 'invitedByUid', 'invitedByName', 'updatedAt']))
+        );
+      allow delete: if false;
+    }
+
+    // 9. Immutable RBAC Audit Logs
+    match /roleAuditLogs/{logId} {
+      allow get: if isVerifiedUser()
+        && isValidId(logId)
+        && (existing().workspaceOwnerId == request.auth.uid || isHqAdmin());
+      allow list: if isVerifiedUser()
+        && (existing().workspaceOwnerId == request.auth.uid || isHqAdmin());
+      allow create: if isVerifiedUser()
+        && isValidId(logId)
+        && isValidRoleAuditLog(incoming())
+        && incoming().createdAt == request.time
+        && (
+          isActiveStoreOwner(incoming().workspaceOwnerId) ||
+          isHqAdmin()
+        );
+      allow update: if false;
       allow delete: if false;
     }
   }

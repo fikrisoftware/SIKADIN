@@ -37,7 +37,7 @@ const IMAGE_PRESETS = [
 ];
 
 export function InventoryModule() {
-  const { user, products, stockLogs } = useAppData();
+  const { user, activeWorkspaceId, products, stockLogs } = useAppData();
 
   const [tab, setTab] = useState<'produk' | 'mutasi'>('produk');
   const [search, setSearch] = useState('');
@@ -127,7 +127,7 @@ export function InventoryModule() {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !activeWorkspaceId) return;
     if (!name.trim()) {
       setFormError('Nama produk wajib diisi.');
       return;
@@ -157,7 +157,7 @@ export function InventoryModule() {
       if (editingProduct) {
         await updateProduct(editingProduct.id, payload);
       } else {
-        await createProduct(user.uid, payload);
+        await createProduct(activeWorkspaceId, payload);
       }
       setShowProductModal(false);
     } catch (err) {
@@ -169,7 +169,7 @@ export function InventoryModule() {
 
   const handleAdjustStock = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !adjustingProduct) return;
+    if (!user || !activeWorkspaceId || !adjustingProduct) return;
     const qtyNum = Math.abs(Number(adjQty) || 0);
     if (qtyNum === 0) return;
 
@@ -177,7 +177,7 @@ export function InventoryModule() {
     setAdjSaving(true);
     try {
       await adjustProductStock(
-        user.uid,
+        activeWorkspaceId,
         adjustingProduct,
         delta,
         adjType,

@@ -161,7 +161,219 @@ export type ActiveTab =
   | 'inventory'
   | 'customers'
   | 'marketing'
-  | 'analytics';
+  | 'analytics'
+  | 'hq'
+  | 'access';
+
+export const USER_ROLES = [
+  'kasir',
+  'pemilik',
+  'admin_pusat',
+  'super_admin_pusat',
+] as const;
+
+export type UserRole = (typeof USER_ROLES)[number];
+
+export const USER_ACCOUNT_STATUSES = ['Aktif', 'Nonaktif'] as const;
+export type UserAccountStatus = (typeof USER_ACCOUNT_STATUSES)[number];
+
+export const ROLE_INVITE_STATUSES = ['Menunggu', 'Diterima', 'Dicabut'] as const;
+export type RoleInviteStatus = (typeof ROLE_INVITE_STATUSES)[number];
+
+export const BOOTSTRAP_SUPER_ADMIN_EMAIL = 'recehanfikri@gmail.com';
+
+export interface UserRoleProfile {
+  uid: string;
+  email: string;
+  displayName: string;
+  role: UserRole;
+  workspaceOwnerId: string;
+  storeName: string;
+  status: UserAccountStatus;
+  assignedBy: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface RoleInvite {
+  id: string;
+  email: string;
+  role: UserRole;
+  workspaceOwnerId: string;
+  storeName: string;
+  status: RoleInviteStatus;
+  invitedByUid: string;
+  invitedByName: string;
+  note: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface RoleAuditLog {
+  id: string;
+  actorUid: string;
+  actorName: string;
+  actorRole: UserRole;
+  targetEmail: string;
+  targetRole: UserRole;
+  workspaceOwnerId: string;
+  action: string;
+  note: string;
+  createdAt?: Timestamp;
+}
+
+export interface RolePermissions {
+  allowedTabs: ActiveTab[];
+  canVoidTransaction: boolean;
+  canManageInventory: boolean;
+  canEditCustomers: boolean;
+  canDeleteCustomers: boolean;
+  canManageMarketing: boolean;
+  canViewAnalytics: boolean;
+  canEditStoreProfile: boolean;
+  canSeedStoreData: boolean;
+  canManageTeam: boolean;
+  assignableRoles: UserRole[];
+  canAccessHqDashboard: boolean;
+  canSwitchWorkspace: boolean;
+  canViewAuditLogs: boolean;
+}
+
+export const ROLE_META: Record<
+  UserRole,
+  {
+    id: UserRole;
+    label: string;
+    shortLabel: string;
+    scope: string;
+    description: string;
+    badgeBg: string;
+    badgeText: string;
+  }
+> = {
+  kasir: {
+    id: 'kasir',
+    label: 'Kasir',
+    shortLabel: 'Kasir',
+    scope: 'Operasional Meja Kasir (1 Toko)',
+    description:
+      'Memproses transaksi penjualan di kasir, menggunakan kode voucher, mencetak struk, dan mendaftarkan pelanggan baru. Tidak dapat membatalkan transaksi, mengubah HPP/stok, atau melihat laporan laba.',
+    badgeBg: 'bg-sky-50 border-sky-200',
+    badgeText: 'text-sky-800',
+  },
+  pemilik: {
+    id: 'pemilik',
+    label: 'Pemilik Usaha',
+    shortLabel: 'Pemilik',
+    scope: 'Penuh 1 Usaha UMKM',
+    description:
+      'Mengelola penuh kasir, pembatalan transaksi, katalog & HPP inventori, database pelanggan, kampanye pemasaran, analisis laba, profil toko, serta mengundang dan menonaktifkan staf Kasir.',
+    badgeBg: 'bg-emerald-50 border-emerald-200',
+    badgeText: 'text-emerald-800',
+  },
+  admin_pusat: {
+    id: 'admin_pusat',
+    label: 'Admin Kantor Pusat',
+    shortLabel: 'Admin Pusat',
+    scope: 'Monitoring & Pembinaan Seluruh UMKM KADIN',
+    description:
+      'Memantau kinerja seluruh UMKM binaan di dashboard Kantor Pusat KADIN, berpindah ruang kerja toko untuk pendampingan, serta mengelola peran Kasir dan Pemilik Usaha.',
+    badgeBg: 'bg-amber-50 border-amber-200',
+    badgeText: 'text-amber-800',
+  },
+  super_admin_pusat: {
+    id: 'super_admin_pusat',
+    label: 'Super Admin Kantor Pusat',
+    shortLabel: 'Super Admin',
+    scope: 'Otoritas Tertinggi Ekosistem KADIN DIGI',
+    description:
+      'Kontrol penuh seluruh sistem KADIN DIGI termasuk pengangkatan dan pencabutan Admin Kantor Pusat & Super Admin, pengawasan lintas toko UMKM, audit log akses, dan simulasi tampilan peran.',
+    badgeBg: 'bg-orange-50 border-orange-200',
+    badgeText: 'text-kadin-orange',
+  },
+};
+
+export function getRolePermissions(role: UserRole): RolePermissions {
+  switch (role) {
+    case 'kasir':
+      return {
+        allowedTabs: ['pos', 'customers'],
+        canVoidTransaction: false,
+        canManageInventory: false,
+        canEditCustomers: false,
+        canDeleteCustomers: false,
+        canManageMarketing: false,
+        canViewAnalytics: false,
+        canEditStoreProfile: false,
+        canSeedStoreData: false,
+        canManageTeam: false,
+        assignableRoles: [],
+        canAccessHqDashboard: false,
+        canSwitchWorkspace: false,
+        canViewAuditLogs: false,
+      };
+    case 'pemilik':
+      return {
+        allowedTabs: ['pos', 'inventory', 'customers', 'marketing', 'analytics', 'access'],
+        canVoidTransaction: true,
+        canManageInventory: true,
+        canEditCustomers: true,
+        canDeleteCustomers: true,
+        canManageMarketing: true,
+        canViewAnalytics: true,
+        canEditStoreProfile: true,
+        canSeedStoreData: true,
+        canManageTeam: true,
+        assignableRoles: ['kasir'],
+        canAccessHqDashboard: false,
+        canSwitchWorkspace: false,
+        canViewAuditLogs: true,
+      };
+    case 'admin_pusat':
+      return {
+        allowedTabs: ['hq', 'pos', 'inventory', 'customers', 'marketing', 'analytics', 'access'],
+        canVoidTransaction: true,
+        canManageInventory: true,
+        canEditCustomers: true,
+        canDeleteCustomers: true,
+        canManageMarketing: true,
+        canViewAnalytics: true,
+        canEditStoreProfile: true,
+        canSeedStoreData: true,
+        canManageTeam: true,
+        assignableRoles: ['kasir', 'pemilik'],
+        canAccessHqDashboard: true,
+        canSwitchWorkspace: true,
+        canViewAuditLogs: true,
+      };
+    case 'super_admin_pusat':
+      return {
+        allowedTabs: ['hq', 'pos', 'inventory', 'customers', 'marketing', 'analytics', 'access'],
+        canVoidTransaction: true,
+        canManageInventory: true,
+        canEditCustomers: true,
+        canDeleteCustomers: true,
+        canManageMarketing: true,
+        canViewAnalytics: true,
+        canEditStoreProfile: true,
+        canSeedStoreData: true,
+        canManageTeam: true,
+        assignableRoles: ['kasir', 'pemilik', 'admin_pusat', 'super_admin_pusat'],
+        canAccessHqDashboard: true,
+        canSwitchWorkspace: true,
+        canViewAuditLogs: true,
+      };
+  }
+}
+
+export function emailToInviteId(email: string): string {
+  const normalized = email.trim().toLowerCase();
+  const safe = normalized
+    .replace(/@/g, '_at_')
+    .replace(/\./g, '_dot_')
+    .replace(/[^a-z0-9_\-]/g, '_');
+  return `inv_${safe}`.slice(0, 120);
+}
 
 // Blueprint-synchronized validation boundaries
 export const LIMITS = {
@@ -182,6 +394,7 @@ export const LIMITS = {
   PROMO_CODE_REGEX: /^[A-Z0-9_\-]*$/,
   CAMPAIGN_MSG_MAX: 1000,
   MAX_TX_ITEMS: 50,
+  ACTION_MAX: 80,
 } as const;
 
 export function formatRupiah(amount: number): string {

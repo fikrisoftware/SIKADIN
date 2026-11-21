@@ -1,13 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   BarChart3,
+  Building2,
   Database,
+  Eye,
+  Lock,
   LogOut,
   Megaphone,
   Menu,
   Package,
+  ShieldCheck,
   ShoppingCart,
   Store,
   Users,
@@ -20,9 +24,11 @@ import { InventoryModule } from './InventoryModule';
 import { CustomersModule } from './CustomersModule';
 import { MarketingModule } from './MarketingModule';
 import { AnalyticsModule } from './AnalyticsModule';
+import { HqOverviewModule } from './HqOverviewModule';
+import { RoleAccessModule } from './RoleAccessModule';
 import { StoreProfileModal } from './StoreProfileModal';
 import { seedSampleUmkmData } from '@/lib/firestore-service';
-import type { ActiveTab } from '@/lib/types';
+import { ROLE_META, USER_ROLES, type ActiveTab, type UserRole } from '@/lib/types';
 
 const NAV_ITEMS: Array<{
   id: ActiveTab;
@@ -32,10 +38,17 @@ const NAV_ITEMS: Array<{
   icon: React.ComponentType<{ className?: string }>;
 }> = [
   {
+    id: 'hq',
+    label: 'Kantor Pusat KADIN',
+    title: 'Dashboard Kantor Pusat KADIN',
+    subtitle: 'Pantau seluruh UMKM binaan, akumulasi omzet nasional, dan ruang kerja lintas toko.',
+    icon: Building2,
+  },
+  {
     id: 'pos',
     label: 'Kasir (POS)',
     title: 'Sistem Kasir (POS)',
-    subtitle: 'Catat transaksi cepat, cetak struk digital, dan potong stok otomatis.',
+    subtitle: 'Catat transaksi cepat, terapkan kode voucher, cetak struk, dan potong stok otomatis.',
     icon: ShoppingCart,
   },
   {
@@ -66,37 +79,73 @@ const NAV_ITEMS: Array<{
     subtitle: 'Evaluasi omzet, laba kotor, produk terlaris, dan laporan CSV.',
     icon: BarChart3,
   },
+  {
+    id: 'access',
+    label: 'Tim & Hak Akses',
+    title: 'Manajemen Tim & Hak Akses (RBAC)',
+    subtitle: 'Atur peran Kasir, Pemilik Usaha, Admin Kantor Pusat, dan Super Admin Kantor Pusat.',
+    icon: ShieldCheck,
+  },
 ];
 
 export function DashboardShell() {
   const {
     user,
     dataLoading,
+    actualRole,
+    effectiveRole,
+    previewRole,
+    setPreviewRole,
+    permissions,
+    isAccountDisabled,
+    activeWorkspaceId,
+    setSelectedWorkspaceId,
     storeProfile,
+    allStores,
     products,
     customers,
     transactions,
+    roleInvites,
     logout,
   } = useAppData();
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>('pos');
+  const [requestedTab, setRequestedTab] = useState<ActiveTab>('pos');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showStoreModal, setShowStoreModal] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [seedError, setSeedError] = useState<string | null>(null);
 
-  const currentNav = NAV_ITEMS.find((n) => n.id === activeTab) || NAV_ITEMS[0];
+  const visibleNavItems = useMemo(
+    () => NAV_ITEMS.filter((item) => permissions.allowedTabs.includes(item.id)),
+    [permissions.allowedTabs]
+  );
+
+  const activeTab: ActiveTab = permissions.allowedTabs.includes(requestedTab)
+    ? requestedTab
+    : permissions.allowedTabs[0] || 'pos';
+
+  const currentNav =
+    visibleNavItems.find((n) => n.id === activeTab) || visibleNavItems[0] || NAV_ITEMS[1];
+  const roleMeta = ROLE_META[effectiveRole];
+
   const isEmptyWorkspace =
-    !dataLoading && products.length === 0 && customers.length === 0 && transactions.length === 0;
+    !dataLoading &&
+    permissions.canSeedStoreData &&
+    activeTab !== 'hq' &&
+    activeTab !== 'access' &&
+    products.length === 0 &&
+    customers.length === 0 &&
+    transactions.length === 0;
 
   const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
+  const pendingInvitesCount = roleInvites.filter((i) => i.status === 'Menunggu').length;
 
   const handleSeedDemo = async () => {
-    if (!user || seeding) return;
+    if (!user || !activeWorkspaceId || !permissions.canSeedStoreData || seeding) return;
     setSeeding(true);
     setSeedError(null);
     try {
-      await seedSampleUmkmData(user.uid, user.displayName || 'UMKM');
+      await seedSampleUmkmData(activeWorkspaceId, user.displayName || 'UMKM');
     } catch (err) {
       setSeedError(err instanceof Error ? err.message : 'Gagal memuat data contoh.');
     } finally {
@@ -104,9 +153,35 @@ export function DashboardShell() {
     }
   };
 
+  if (isAccountDisabled) {
+    return (
+      <div className="min-h-screen bg-[#f3f6fb] flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-4">
+          <div className="w-12 h-12 rounded-xl bg-red-50 border border-red-200 text-red-700 flex items-center justify-center mx-auto">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h1 className="text-xl font-bold text-navy-900">Akses Akun Dinonaktifkan</h1>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Akun <strong className="font-mono text-slate-900">{user?.email}</strong> saat ini
+            berstatus <strong>Nonaktif</strong>. Hubungi Pemilik Usaha atau Admin Kantor Pusat KADIN
+            untuk mengaktifkan kembali akses Anda.
+          </p>
+          <button
+            type="button"
+            onClick={logout}
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-navy-900 text-white text-sm font-semibold rounded-lg hover:bg-navy-800 transition-colors cursor-pointer"
+          >
+            <LogOut className="w-4 h-4" />
+            Keluar Akun
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const sidebarContent = (
     <div className="flex flex-col h-full bg-navy-950 text-white border-r border-white/10">
-      {/* Brand Lockup with Si KADI Robot */}
+      {/* Brand Lockup with Si KADI */}
       <div className="px-5 h-16 border-b border-white/10 flex items-center gap-3 shrink-0">
         <SiKadiIcon size="sm" variant="dark" />
         <div className="min-w-0">
@@ -117,31 +192,74 @@ export function DashboardShell() {
         </div>
       </div>
 
-      {/* Store Identity Switcher */}
-      <div className="px-4 py-3.5 border-b border-white/10">
-        <button
-          type="button"
-          onClick={() => {
-            setShowStoreModal(true);
-            setMobileMenuOpen(false);
-          }}
-          className="w-full text-left px-3 py-2.5 rounded-lg bg-white/8 hover:bg-white/12 border border-white/12 transition-colors cursor-pointer"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-white truncate">
-              {storeProfile?.storeName || 'Atur Profil Usaha'}
-            </span>
-            <Store className="w-3.5 h-3.5 text-kadin-orange-light shrink-0" />
+      {/* Role Badge & Active Workspace Selector */}
+      <div className="px-4 py-3.5 border-b border-white/10 space-y-2.5">
+        <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md bg-white/8 border border-white/12">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-200">
+            Peran Aktif
+          </span>
+          <span className="text-[11px] font-bold text-kadin-orange-light truncate">
+            {roleMeta.shortLabel}
+          </span>
+        </div>
+
+        {permissions.canSwitchWorkspace && allStores.length > 0 ? (
+          <div>
+            <label className="block text-[10px] font-semibold uppercase tracking-wide text-blue-200/75 mb-1">
+              Ruang Kerja Toko
+            </label>
+            <select
+              value={activeWorkspaceId}
+              onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+              className="w-full px-2.5 py-2 text-xs font-semibold text-white bg-navy-900 border border-white/15 rounded-lg focus:outline-none focus:border-kadin-orange"
+            >
+              {user && !allStores.some((s) => s.ownerId === user.uid) && (
+                <option value={user.uid}>Toko Saya (Default)</option>
+              )}
+              {allStores.map((st) => (
+                <option key={st.ownerId} value={st.ownerId}>
+                  {st.storeName}
+                </option>
+              ))}
+            </select>
           </div>
-          <p className="text-[11px] text-blue-200/75 truncate mt-0.5">
-            {storeProfile?.category || 'Klik untuk melengkapi profil toko'}
-          </p>
-        </button>
+        ) : permissions.canEditStoreProfile ? (
+          <button
+            type="button"
+            onClick={() => {
+              setShowStoreModal(true);
+              setMobileMenuOpen(false);
+            }}
+            className="w-full text-left px-3 py-2.5 rounded-lg bg-white/8 hover:bg-white/12 border border-white/12 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-white truncate">
+                {storeProfile?.storeName || 'Atur Profil Usaha'}
+              </span>
+              <Store className="w-3.5 h-3.5 text-kadin-orange-light shrink-0" />
+            </div>
+            <p className="text-[11px] text-blue-200/75 truncate mt-0.5">
+              {storeProfile?.category || 'Klik untuk melengkapi profil toko'}
+            </p>
+          </button>
+        ) : (
+          <div className="px-3 py-2.5 rounded-lg bg-white/6 border border-white/10">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-white truncate">
+                {storeProfile?.storeName || 'Toko UMKM Ditugaskan'}
+              </span>
+              <Store className="w-3.5 h-3.5 text-blue-200/70 shrink-0" />
+            </div>
+            <p className="text-[11px] text-blue-200/75 truncate mt-0.5">
+              {storeProfile?.category || 'Akses Meja Kasir'}
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* Primary Sidebar Navigation */}
+      {/* Primary Sidebar Navigation (Filtered by RBAC Role Permissions) */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto" aria-label="Menu Utama KADIN DIGI">
-        {NAV_ITEMS.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const active = activeTab === item.id;
           return (
@@ -149,7 +267,7 @@ export function DashboardShell() {
               key={item.id}
               type="button"
               onClick={() => {
-                setActiveTab(item.id);
+                setRequestedTab(item.id);
                 setMobileMenuOpen(false);
               }}
               className={`w-full flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
@@ -171,10 +289,44 @@ export function DashboardShell() {
                   {lowStockCount}
                 </span>
               )}
+              {item.id === 'access' && pendingInvitesCount > 0 && (
+                <span
+                  className={`font-mono text-[11px] font-semibold tabular-nums ${
+                    active ? 'text-white' : 'text-kadin-orange-light'
+                  }`}
+                >
+                  {pendingInvitesCount}
+                </span>
+              )}
             </button>
           );
         })}
       </nav>
+
+      {/* Super Admin Kantor Pusat: 1-Click UI Role Preview Switcher */}
+      {actualRole === 'super_admin_pusat' && (
+        <div className="px-4 py-3 border-t border-white/10 bg-white/4 space-y-1.5">
+          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-cyan-300">
+            <Eye className="w-3.5 h-3.5" />
+            Pratinjau Tampilan Peran
+          </div>
+          <select
+            value={previewRole || 'super_admin_pusat'}
+            onChange={(e) => {
+              const val = e.target.value as UserRole;
+              setPreviewRole(val === 'super_admin_pusat' ? null : val);
+            }}
+            className="w-full px-2.5 py-1.5 text-xs font-semibold text-white bg-navy-900 border border-white/15 rounded-lg focus:outline-none focus:border-kadin-orange cursor-pointer"
+          >
+            {USER_ROLES.map((rk) => (
+              <option key={rk} value={rk}>
+                {ROLE_META[rk].label}
+                {rk === 'super_admin_pusat' ? ' (Asli)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Account & KADIN Cooperation Footer */}
       <div className="p-4 border-t border-white/10 space-y-3">
@@ -196,7 +348,7 @@ export function DashboardShell() {
         </div>
         <div className="min-w-0">
           <p className="text-xs font-semibold text-white truncate">
-            {user?.displayName || 'Pemilik Usaha'}
+            {user?.displayName || roleMeta.label}
           </p>
           <p className="text-[11px] text-blue-200/70 truncate">{user?.email}</p>
         </div>
@@ -242,6 +394,26 @@ export function DashboardShell() {
 
       {/* Main Viewport Area */}
       <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
+        {/* Role Preview Notice Banner (Super Admin Kantor Pusat only) */}
+        {previewRole && actualRole === 'super_admin_pusat' && (
+          <div className="bg-amber-50 border-b border-amber-200 px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-amber-950">
+              <Eye className="w-4 h-4 text-amber-700 shrink-0" />
+              <span>
+                Mode Pratinjau UI aktif sebagai <strong>{ROLE_META[previewRole].label}</strong> (
+                {ROLE_META[previewRole].scope}). Menu dan tombol disesuaikan dengan peran ini.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPreviewRole(null)}
+              className="px-3 py-1 font-semibold text-white bg-navy-900 rounded-md hover:bg-navy-800 whitespace-nowrap cursor-pointer"
+            >
+              Kembali ke Super Admin
+            </button>
+          </div>
+        )}
+
         {/* Contextual Workspace Header */}
         <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-20 px-4 sm:px-6 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
@@ -266,17 +438,23 @@ export function DashboardShell() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2.5 shrink-0">
+            <span
+              className={`hidden md:inline-flex items-center px-2.5 py-1 text-[11px] font-bold border rounded-md ${roleMeta.badgeBg} ${roleMeta.badgeText}`}
+            >
+              {roleMeta.label}
+            </span>
+
             {activeTab !== 'pos' ? (
               <button
                 type="button"
-                onClick={() => setActiveTab('pos')}
+                onClick={() => setRequestedTab('pos')}
                 className="inline-flex items-center gap-2 px-3.5 py-2 bg-kadin-orange text-white text-xs font-semibold rounded-lg hover:bg-kadin-orange-hover transition-colors whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <ShoppingCart className="w-3.5 h-3.5" />
                 Buka Kasir
               </button>
-            ) : (
+            ) : permissions.canEditStoreProfile ? (
               <button
                 type="button"
                 onClick={() => setShowStoreModal(true)}
@@ -285,7 +463,7 @@ export function DashboardShell() {
                 <Store className="w-3.5 h-3.5 text-kadin-orange" />
                 Profil Usaha
               </button>
-            )}
+            ) : null}
           </div>
         </header>
 
@@ -308,7 +486,7 @@ export function DashboardShell() {
             </p>
           </div>
 
-          {/* Empty Store 1-Click Sample UMKM Seeder Banner */}
+          {/* Empty Store 1-Click Sample UMKM Seeder Banner (Pemilik & HQ only) */}
           {isEmptyWorkspace && (
             <div className="bg-navy-950 text-white border border-navy-800 rounded-xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
               <div className="flex items-start gap-4">
@@ -318,7 +496,7 @@ export function DashboardShell() {
                     Selamat Datang di Si KADI — Sistem Kasir dan Inventori
                   </h2>
                   <p className="text-sm text-blue-100/85 mt-1 max-w-2xl">
-                    Akun KADIN DIGI Anda siap dipakai. Tambahkan produk pertama sendiri atau muat
+                    Ruang kerja KADIN DIGI siap dipakai. Tambahkan produk pertama sendiri atau muat
                     data contoh UMKM (katalog produk, pelanggan, voucher, dan transaksi 7 hari)
                     untuk mencoba seluruh fitur sekarang.
                   </p>
@@ -356,22 +534,32 @@ export function DashboardShell() {
             </div>
           ) : (
             <>
-              {activeTab === 'pos' && (
-                <PosModule onNavigateInventory={() => setActiveTab('inventory')} />
+              {activeTab === 'hq' && permissions.canAccessHqDashboard && (
+                <HqOverviewModule
+                  onSelectStoreWorkspace={(ownerId, nextTab) => {
+                    setSelectedWorkspaceId(ownerId);
+                    if (nextTab) setRequestedTab(nextTab);
+                  }}
+                  onNavigateAccess={() => setRequestedTab('access')}
+                />
               )}
-              {activeTab === 'inventory' && <InventoryModule />}
+              {activeTab === 'pos' && (
+                <PosModule onNavigateInventory={() => setRequestedTab('inventory')} />
+              )}
+              {activeTab === 'inventory' && permissions.canManageInventory && <InventoryModule />}
               {activeTab === 'customers' && <CustomersModule />}
-              {activeTab === 'marketing' && <MarketingModule />}
-              {activeTab === 'analytics' && <AnalyticsModule />}
+              {activeTab === 'marketing' && permissions.canManageMarketing && <MarketingModule />}
+              {activeTab === 'analytics' && permissions.canViewAnalytics && <AnalyticsModule />}
+              {activeTab === 'access' && permissions.canManageTeam && <RoleAccessModule />}
             </>
           )}
         </main>
       </div>
 
       {/* Store Profile Modal */}
-      {showStoreModal && user && (
+      {showStoreModal && user && activeWorkspaceId && permissions.canEditStoreProfile && (
         <StoreProfileModal
-          ownerId={user.uid}
+          ownerId={activeWorkspaceId}
           profile={storeProfile}
           defaultName={
             user.displayName ? `Usaha ${user.displayName.split(' ')[0]}` : 'Toko UMKM Saya'

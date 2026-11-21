@@ -37,7 +37,7 @@ import {
 } from '@/lib/types';
 
 export function MarketingModule() {
-  const { user, storeProfile, campaigns, customers, products, transactions } = useAppData();
+  const { user, activeWorkspaceId, storeProfile, campaigns, customers, products, transactions } = useAppData();
 
   const [statusFilter, setStatusFilter] = useState<'Semua' | CampaignStatus>('Semua');
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
@@ -152,7 +152,7 @@ export function MarketingModule() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !activeWorkspaceId) return;
     if (!title.trim() || !message.trim()) {
       setFormError('Judul dan isi pesan promosi wajib diisi.');
       return;
@@ -181,7 +181,7 @@ export function MarketingModule() {
       if (editing) {
         await updateCampaign(editing.id, payload);
       } else {
-        await createCampaign(user.uid, payload);
+        await createCampaign(activeWorkspaceId, payload);
       }
       setShowModal(false);
     } catch (err) {

@@ -30,7 +30,7 @@ import {
 } from '@/lib/types';
 
 export function CustomersModule() {
-  const { user, storeProfile, customers, transactions } = useAppData();
+  const { user, activeWorkspaceId, permissions, storeProfile, customers, transactions } = useAppData();
 
   const [search, setSearch] = useState('');
   const [segmentFilter, setSegmentFilter] = useState<string>('Semua');
@@ -100,7 +100,7 @@ export function CustomersModule() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !activeWorkspaceId) return;
     if (!name.trim()) {
       setFormError('Nama pelanggan wajib diisi.');
       return;
@@ -120,10 +120,10 @@ export function CustomersModule() {
         segment,
         notes: notes.trim(),
       };
-      if (editing) {
+      if (editing && permissions.canEditCustomers) {
         await updateCustomer(editing.id, payload);
       } else {
-        await createCustomer(user.uid, payload);
+        await createCustomer(activeWorkspaceId, payload);
       }
       setShowModal(false);
     } catch (err) {
@@ -134,6 +134,7 @@ export function CustomersModule() {
   };
 
   const handleDelete = async (c: Customer) => {
+    if (!permissions.canDeleteCustomers) return;
     await deleteCustomer(c.id);
     if (selectedCustomer?.id === c.id) setSelectedCustomer(null);
   };
@@ -318,24 +319,38 @@ export function CustomersModule() {
                           className="py-3 px-4 text-right whitespace-nowrap"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <div className="inline-flex items-center gap-1">
+                          {permissions.canEditCustomers || permissions.canDeleteCustomers ? (
+                            <div className="inline-flex items-center gap-1">
+                              {permissions.canEditCustomers && (
+                                <button
+                                  type="button"
+                                  onClick={() => openEdit(c)}
+                                  className="p-1.5 text-slate-600 hover:text-navy-900 hover:bg-slate-100 rounded-md cursor-pointer"
+                                  aria-label={`Edit ${c.name}`}
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
+                              )}
+                              {permissions.canDeleteCustomers && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(c)}
+                                  className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-md cursor-pointer"
+                                  aria-label={`Hapus ${c.name}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          ) : (
                             <button
                               type="button"
-                              onClick={() => openEdit(c)}
-                              className="p-1.5 text-slate-600 hover:text-navy-900 hover:bg-slate-100 rounded-md cursor-pointer"
-                              aria-label={`Edit ${c.name}`}
+                              onClick={() => setSelectedCustomer(c)}
+                              className="text-xs font-semibold text-navy-900 hover:underline cursor-pointer"
                             >
-                              <Edit3 className="w-4 h-4" />
+                              Detail
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(c)}
-                              className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-md cursor-pointer"
-                              aria-label={`Hapus ${c.name}`}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
+                          )}
                         </td>
                       </tr>
                     );
