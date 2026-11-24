@@ -2,20 +2,20 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'KADIN DIGI — UMKM Naik Kelas, Bisnis Makin Cuan',
+  title: 'SI DIKA — UMKM Naik Kelas, Bisnis Makin Cuan',
   description:
-    'KADIN DIGI bersama Si KADI (Sistem Kasir dan Inventori): Kasir POS, Inventori, Database Pelanggan, Pemasaran Digital, dan Analisis Kinerja bekerja sama dengan KADIN Indonesia.',
+    'SI DIKA (Sistem Kasir dan Inventori) & One Payment System: Kasir POS, Inventori, Database Pelanggan, Pemasaran Digital, dan Analisis Kinerja bekerja sama dengan KADIN Indonesia.',
   openGraph: {
-    title: 'KADIN DIGI — UMKM Naik Kelas, Bisnis Makin Cuan',
+    title: 'SI DIKA — UMKM Naik Kelas, Bisnis Makin Cuan',
     description:
-      'Platform terpadu Kasir UMKM, Inventory, CRM Pelanggan, Pemasaran Digital, dan Analisis Kinerja Bisnis.',
+      'Platform terpadu Kasir UMKM, Inventory, One Payment System, CRM Pelanggan, Pemasaran Digital, dan Analisis Kinerja Bisnis.',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'KADIN DIGI — UMKM Naik Kelas, Bisnis Makin Cuan',
+    title: 'SI DIKA — UMKM Naik Kelas, Bisnis Makin Cuan',
     description:
-      'Platform terpadu Kasir UMKM, Inventory, CRM Pelanggan, Pemasaran Digital, dan Analisis Kinerja Bisnis.',
+      'Platform terpadu Kasir UMKM, Inventory, One Payment System, CRM Pelanggan, Pemasaran Digital, dan Analisis Kinerja Bisnis.',
   },
 };
 

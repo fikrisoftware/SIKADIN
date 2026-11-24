@@ -51,7 +51,7 @@ export class ErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error) {
-    console.error('KADIN DIGI ErrorBoundary caught:', error);
+    console.error('SI DIKA ErrorBoundary caught:', error);
   }
 
   render() {
@@ -106,7 +106,7 @@ export class ErrorBoundary extends React.Component<
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-navy-900 text-white text-sm font-medium rounded-lg hover:bg-navy-800 transition-colors whitespace-nowrap"
             >
               <RefreshCw className="w-4 h-4" />
-              Muat Ulang KADIN DIGI
+              Muat Ulang SI DIKA
             </button>
           </div>
         </div>

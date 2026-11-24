@@ -5,9 +5,9 @@ import { AuthProvider, useAppData } from '@/components/AuthContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { WelcomeScreen } from '@/components/WelcomeScreen';
 import { DashboardShell } from '@/components/DashboardShell';
-import { KadinDigiWordmark, SiKadiIcon } from '@/components/SiKadiBrand';
+import { SiDikaWordmark, SiKadiIcon } from '@/components/SiKadiBrand';
 
-function KadinDigiApp() {
+function SiDikaApp() {
   const { user, authReady } = useAppData();
 
   if (!authReady) {
@@ -15,8 +15,8 @@ function KadinDigiApp() {
       <div className="min-h-screen kadin-hero-bg flex flex-col items-center justify-center gap-4 p-6">
         <SiKadiIcon size="lg" variant="dark" />
         <div className="text-center">
-          <KadinDigiWordmark dark className="text-xl block" />
-          <p className="text-xs text-blue-200/80 mt-1">Memuat ruang kerja Si KADI...</p>
+          <SiDikaWordmark dark className="text-xl block" />
+          <p className="text-xs text-blue-200/80 mt-1">Memuat ruang kerja SI DIKA...</p>
         </div>
       </div>
     );
@@ -33,7 +33,7 @@ export default function HomePage() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <KadinDigiApp />
+        <SiDikaApp />
       </AuthProvider>
     </ErrorBoundary>
   );

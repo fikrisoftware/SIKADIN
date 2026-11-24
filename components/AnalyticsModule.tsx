@@ -186,7 +186,7 @@ export function AnalyticsModule() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `laporan-penjualan-kadin-digi-${todayISO()}.csv`;
+    a.download = `laporan-penjualan-si-dika-${todayISO()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };

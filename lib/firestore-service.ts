@@ -1,6 +1,7 @@
 import {
   deleteDoc,
   doc,
+  getDoc,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -8,24 +9,30 @@ import {
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
 import {
+  BOOTSTRAP_SUPER_ADMIN_EMAIL,
   Campaign,
   CampaignChannel,
   CampaignStatus,
   CampaignTargetSegment,
   Customer,
   CustomerSegment,
+  emailToInviteId,
   generateDocId,
   generateReceiptNo,
   LIMITS,
   PaymentMethod,
   Product,
   ProductCategory,
+  RoleInvite,
   StockLogType,
   StoreCategory,
   StoreProfile,
   todayISO,
   Transaction,
   TransactionItem,
+  UserAccountStatus,
+  UserRole,
+  UserRoleProfile,
 } from './types';
 
 function clampString(val: string, max: number): string {
@@ -52,6 +59,266 @@ function sanitizePromoCode(val: string): string {
     .toUpperCase()
     .replace(/[^A-Z0-9_\-]/g, '')
     .slice(0, LIMITS.PROMO_CODE_MAX);
+}
+
+// === RBAC Identity Bootstrap & Management ===
+export async function ensureUserRoleProfile(params: {
+  uid: string;
+  email: string;
+  displayName: string;
+}): Promise<UserRoleProfile> {
+  const normalizedEmail = params.email.trim().toLowerCase();
+  const safeName = clampString(
+    params.displayName || normalizedEmail.split('@')[0] || 'Pengguna',
+    LIMITS.NAME_MAX
+  );
+  const roleRef = doc(db, 'userRoles', params.uid);
+
+  try {
+    const existingSnap = await getDoc(roleRef);
+    if (existingSnap.exists()) {
+      return existingSnap.data() as UserRoleProfile;
+    }
+
+    // Check if there is a pending RoleInvite for this Google email
+    const inviteId = emailToInviteId(normalizedEmail);
+    const inviteRef = doc(db, 'roleInvites', inviteId);
+    let claimedInvite: RoleInvite | null = null;
+    try {
+      const inviteSnap = await getDoc(inviteRef);
+      if (inviteSnap.exists()) {
+        const inv = inviteSnap.data() as Omit<RoleInvite, 'id'>;
+        if (inv.status === 'Menunggu' && inv.email === normalizedEmail) {
+          claimedInvite = { id: inviteSnap.id, ...inv };
+        }
+      }
+    } catch {
+      // No invite accessible or doesn't exist
+    }
+
+    let role: UserRole = 'pemilik';
+    let workspaceOwnerId = params.uid;
+    let storeName = `Usaha ${safeName.split(' ')[0]}`;
+    let assignedBy = 'self_registration';
+
+    if (normalizedEmail === BOOTSTRAP_SUPER_ADMIN_EMAIL) {
+      role = 'super_admin_pusat';
+      workspaceOwnerId = params.uid;
+      storeName = 'Kantor Pusat KADIN Indonesia';
+      assignedBy = 'system_bootstrap';
+    } else if (claimedInvite) {
+      role = claimedInvite.role;
+      workspaceOwnerId = claimedInvite.workspaceOwnerId;
+      storeName = claimedInvite.storeName || storeName;
+      assignedBy = claimedInvite.invitedByName;
+    }
+
+    const profileData = {
+      uid: params.uid,
+      email: normalizedEmail,
+      displayName: safeName,
+      role,
+      workspaceOwnerId,
+      storeName: clampString(storeName, LIMITS.STORE_NAME_MAX),
+      status: 'Aktif' as UserAccountStatus,
+      assignedBy: clampString(assignedBy, 128),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    const batch = writeBatch(db);
+    batch.set(roleRef, profileData);
+    if (claimedInvite) {
+      batch.update(inviteRef, {
+        status: 'Diterima',
+        updatedAt: serverTimestamp(),
+      });
+    }
+    await batch.commit();
+
+    return {
+      ...profileData,
+      createdAt: undefined,
+      updatedAt: undefined,
+    };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `userRoles/${params.uid}`);
+  }
+}
+
+export interface RoleInviteInput {
+  email: string;
+  role: UserRole;
+  workspaceOwnerId: string;
+  storeName: string;
+  note: string;
+}
+
+export async function createOrUpdateRoleInvite(
+  actor: { uid: string; displayName: string; role: UserRole },
+  input: RoleInviteInput,
+  existingInvite: RoleInvite | null
+): Promise<string> {
+  const normalizedEmail = input.email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    throw new Error('Masukkan alamat email Google yang valid.');
+  }
+  const inviteId = emailToInviteId(normalizedEmail);
+  const path = `roleInvites/${inviteId}`;
+  const batch = writeBatch(db);
+
+  const safeStore = clampString(input.storeName, LIMITS.STORE_NAME_MAX) || 'Usaha UMKM SI DIKA';
+  const safeNote = clampString(input.note, LIMITS.NOTE_MAX);
+  const actorName = clampString(actor.displayName || 'Admin', LIMITS.NAME_MAX);
+
+  if (existingInvite) {
+    batch.update(doc(db, 'roleInvites', inviteId), {
+      role: input.role,
+      workspaceOwnerId: input.workspaceOwnerId,
+      storeName: safeStore,
+      status: 'Menunggu',
+      invitedByUid: actor.uid,
+      invitedByName: actorName,
+      note: safeNote,
+      updatedAt: serverTimestamp(),
+    });
+  } else {
+    batch.set(doc(db, 'roleInvites', inviteId), {
+      email: normalizedEmail,
+      role: input.role,
+      workspaceOwnerId: input.workspaceOwnerId,
+      storeName: safeStore,
+      status: 'Menunggu',
+      invitedByUid: actor.uid,
+      invitedByName: actorName,
+      note: safeNote,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  const auditId = generateDocId('audit');
+  batch.set(doc(db, 'roleAuditLogs', auditId), {
+    actorUid: actor.uid,
+    actorName,
+    actorRole: actor.role,
+    targetEmail: normalizedEmail,
+    targetRole: input.role,
+    workspaceOwnerId: input.workspaceOwnerId,
+    action: existingInvite ? 'Perbarui Undangan Peran' : 'Undang Pengguna Baru',
+    note: safeNote || `Penugasan peran ${input.role} untuk ${safeStore}`,
+    createdAt: serverTimestamp(),
+  });
+
+  try {
+    await batch.commit();
+    return inviteId;
+  } catch (error) {
+    handleFirestoreError(error, existingInvite ? OperationType.UPDATE : OperationType.CREATE, path);
+  }
+}
+
+export async function revokeRoleInvite(
+  actor: { uid: string; displayName: string; role: UserRole },
+  invite: RoleInvite
+): Promise<void> {
+  const path = `roleInvites/${invite.id}`;
+  const actorName = clampString(actor.displayName || 'Admin', LIMITS.NAME_MAX);
+  const batch = writeBatch(db);
+
+  batch.update(doc(db, 'roleInvites', invite.id), {
+    status: 'Dicabut',
+    invitedByUid: actor.uid,
+    invitedByName: actorName,
+    updatedAt: serverTimestamp(),
+  });
+
+  const auditId = generateDocId('audit');
+  batch.set(doc(db, 'roleAuditLogs', auditId), {
+    actorUid: actor.uid,
+    actorName,
+    actorRole: actor.role,
+    targetEmail: invite.email,
+    targetRole: invite.role,
+    workspaceOwnerId: invite.workspaceOwnerId,
+    action: 'Cabut Undangan Peran',
+    note: `Undangan ${invite.role} dicabut oleh ${actorName}`,
+    createdAt: serverTimestamp(),
+  });
+
+  try {
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function updateUserRoleAssignment(
+  actor: { uid: string; displayName: string; role: UserRole },
+  target: UserRoleProfile,
+  updates: {
+    role?: UserRole;
+    workspaceOwnerId?: string;
+    storeName?: string;
+    status?: UserAccountStatus;
+    note?: string;
+  }
+): Promise<void> {
+  const path = `userRoles/${target.uid}`;
+  const actorName = clampString(actor.displayName || 'Admin', LIMITS.NAME_MAX);
+  const batch = writeBatch(db);
+
+  const isStoreOwnerOnlyToggle =
+    actor.role === 'pemilik' &&
+    target.role === 'kasir' &&
+    target.workspaceOwnerId === actor.uid;
+
+  const nextRole = updates.role ?? target.role;
+  const nextStatus = updates.status ?? target.status;
+  const nextWorkspace = updates.workspaceOwnerId ?? target.workspaceOwnerId;
+  const nextStoreName = clampString(updates.storeName ?? target.storeName, LIMITS.STORE_NAME_MAX);
+
+  if (isStoreOwnerOnlyToggle) {
+    batch.update(doc(db, 'userRoles', target.uid), {
+      status: nextStatus,
+      assignedBy: actorName,
+      updatedAt: serverTimestamp(),
+    });
+  } else {
+    batch.update(doc(db, 'userRoles', target.uid), {
+      role: nextRole,
+      workspaceOwnerId: nextWorkspace,
+      storeName: nextStoreName,
+      status: nextStatus,
+      assignedBy: actorName,
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  const auditId = generateDocId('audit');
+  batch.set(doc(db, 'roleAuditLogs', auditId), {
+    actorUid: actor.uid,
+    actorName,
+    actorRole: actor.role,
+    targetEmail: target.email,
+    targetRole: nextRole,
+    workspaceOwnerId: nextWorkspace,
+    action:
+      updates.status && updates.status !== target.status
+        ? `Ubah Status ke ${nextStatus}`
+        : `Ubah Peran ke ${nextRole}`,
+    note: clampString(
+      updates.note || `Diperbarui oleh ${actorName} (${nextStoreName || nextWorkspace})`,
+      LIMITS.NOTE_MAX
+    ),
+    createdAt: serverTimestamp(),
+  });
+
+  try {
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
 }
 
 // === Store Profile ===
@@ -431,7 +698,9 @@ export async function checkoutTransaction(
     1_000_000_000
   );
   const changeAmount = Math.max(0, amountPaid - total);
-  const promoCode = payload.appliedCampaign ? sanitizePromoCode(payload.appliedCampaign.promoCode) : '';
+  const promoCode = payload.appliedCampaign
+    ? sanitizePromoCode(payload.appliedCampaign.promoCode)
+    : '';
 
   const batch = writeBatch(db);
 
@@ -567,25 +836,29 @@ export async function voidTransaction(
   }
 }
 
-// === Sample UMKM Data Seeder (2-phase atomic batches so exists() guards pass strictly) ===
+// === Sample UMKM Data Seeder ===
 export async function seedSampleUmkmData(ownerId: string, ownerDisplayName: string): Promise<void> {
   const storeName = ownerDisplayName
     ? `Kedai & Galeri ${ownerDisplayName.split(' ')[0]}`
     : 'Galeri Nusantara UMKM';
 
-  // Batch 1: Store Profile + Products + Customers + Campaigns
+  const storeRef = doc(db, 'stores', ownerId);
+  const existingStore = await getDoc(storeRef);
+
   const batch1 = writeBatch(db);
 
-  batch1.set(doc(db, 'stores', ownerId), {
-    ownerId,
-    storeName: clampString(storeName, LIMITS.STORE_NAME_MAX),
-    category: 'Kuliner & F&B',
-    phone: '081288901234',
-    address: 'Jl. Merdeka Raya No. 48, Bandung, Jawa Barat',
-    tagline: 'UMKM Naik Kelas, Bisnis Makin Cuan',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  if (!existingStore.exists()) {
+    batch1.set(storeRef, {
+      ownerId,
+      storeName: clampString(storeName, LIMITS.STORE_NAME_MAX),
+      category: 'Kuliner & F&B',
+      phone: '081288901234',
+      address: 'Jl. Merdeka Raya No. 48, Bandung, Jawa Barat',
+      tagline: 'UMKM Naik Kelas, Bisnis Makin Cuan',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }
 
   const sampleProducts: Array<Omit<Product, 'ownerId' | 'createdAt' | 'updatedAt'>> = [
     {
@@ -827,7 +1100,6 @@ export async function seedSampleUmkmData(ownerId: string, ownerDisplayName: stri
     handleFirestoreError(error, OperationType.WRITE, 'seed_batch_1');
   }
 
-  // Batch 2: Sample Historical Transactions (7 days) & Initial Stock Logs
   const batch2 = writeBatch(db);
 
   const txSeeds: Array<{
@@ -895,7 +1167,6 @@ export async function seedSampleUmkmData(ownerId: string, ownerDisplayName: stri
     });
   });
 
-  // Initial stock logs for first 3 products
   for (const p of sampleProducts.slice(0, 3)) {
     const logId = generateDocId('log');
     batch2.set(doc(db, 'stockLogs', logId), {
@@ -905,7 +1176,7 @@ export async function seedSampleUmkmData(ownerId: string, ownerDisplayName: stri
       type: 'masuk',
       delta: p.stock,
       stockAfter: p.stock,
-      note: 'Stok awal katalog contoh KADIN DIGI',
+      note: 'Stok awal katalog contoh SI DIKA',
       createdAt: serverTimestamp(),
     });
   }

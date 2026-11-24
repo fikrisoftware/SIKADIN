@@ -32,7 +32,7 @@ export function SiKadiIcon({
     return (
       <div
         className={`${dims} bg-navy-900 text-kadin-orange-light flex items-center justify-center shrink-0 border ${borderClass} ${className}`}
-        aria-label="Ikon Si KADI"
+        aria-label="Ikon SI DIKA"
       >
         <Bot className={size === 'lg' ? 'w-8 h-8' : 'w-5 h-5'} />
       </div>
@@ -45,7 +45,7 @@ export function SiKadiIcon({
     >
       <img
         src="/images/si-kadi-logo.jpg"
-        alt="Si KADI — Sistem Kasir dan Inventori KADIN DIGI"
+        alt="SI DIKA — Sistem Kasir dan Inventori"
         referrerPolicy="no-referrer"
         onError={() => setImgError(true)}
         className="w-full h-full object-cover"
@@ -54,7 +54,7 @@ export function SiKadiIcon({
   );
 }
 
-export function KadinDigiWordmark({
+export function SiDikaWordmark({
   dark = false,
   className = 'text-lg',
 }: {
@@ -65,8 +65,10 @@ export function KadinDigiWordmark({
     <span
       className={`font-display font-extrabold tracking-tight whitespace-nowrap shrink-0 ${className}`}
     >
-      <span className={dark ? 'text-white' : 'text-navy-900'}>KADIN </span>
-      <span className={dark ? 'text-kadin-orange-light' : 'text-kadin-orange'}>DIGI</span>
+      <span className={dark ? 'text-white' : 'text-navy-900'}>SI </span>
+      <span className={dark ? 'text-kadin-orange-light' : 'text-kadin-orange'}>DIKA</span>
     </span>
   );
 }
+
+export const KadinDigiWordmark = SiDikaWordmark;
