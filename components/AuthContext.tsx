@@ -413,13 +413,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
+      console.error('Google Sign-In Error:', error);
       const code = (error as { code?: string })?.code || '';
+      const message = (error as { message?: string })?.message || '';
+
       if (code === 'auth/popup-closed-by-user') {
         setAuthError('Jendela login ditutup sebelum selesai. Silakan coba masuk kembali.');
       } else if (code === 'auth/popup-blocked') {
         setAuthError('Browser memblokir jendela login. Izinkan pop-up untuk melanjutkan.');
+      } else if (code === 'auth/unauthorized-domain') {
+        setAuthError(`Domain ini (${window.location.hostname}) belum diizinkan di Firebase Authentication > Settings > Authorized Domains.`);
+      } else if (code === 'auth/operation-not-allowed') {
+        setAuthError('Metode login Google belum diaktifkan di Firebase Console (Authentication > Sign-in method).');
+      } else if (code === 'auth/configuration-not-found') {
+        setAuthError('Konfigurasi autentikasi Google belum ditemukan pada proyek Firebase ini.');
       } else {
-        setAuthError('Gagal masuk dengan Google. Periksa koneksi Anda dan coba lagi.');
+        setAuthError(`Gagal masuk dengan Google: ${code ? `[${code}] ` : ''}${message || 'Periksa koneksi Anda dan coba lagi.'}`);
       }
     } finally {
       setSigningIn(false);
