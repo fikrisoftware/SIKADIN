@@ -60,8 +60,8 @@ const PROMO_VIDEOS: PromoVideoItem[] = [
     shortTab: '01. SI DIKA & One Payment',
     title: 'SI DIKA · Sistem Kasir, Inventori & One Payment System',
     subtitle: 'Sistem Kasir, Inventori, Pembayaran Terpadu & Analitik UMKM bersama KADIN Indonesia',
-    src: '/downloads/Video_Promosi_SI_DIKA.mp4?v=1',
-    poster: '/images/video-poster-sidika.png',
+    src: '/downloads/Video_Promosi_SI_DIKA.mp4?v=2',
+    poster: '/images/video-poster-sidika.png?v=2',
     meta: 'Full HD · Narasi',
   },
   {
@@ -69,8 +69,8 @@ const PROMO_VIDEOS: PromoVideoItem[] = [
     shortTab: '02. NgeGas Super-app Desa',
     title: 'NgeGas · Super-app Ekosistem Desa & Daerah',
     subtitle: 'Ojek, makanan, dan kirim barang di sekitarmu — diatur presisi per zona wilayah',
-    src: '/downloads/Video_Promosi_NgeGas.mp4?v=1',
-    poster: '/images/video-poster-ngegas.png',
+    src: '/downloads/Video_Promosi_NgeGas.mp4?v=2',
+    poster: '/images/video-poster-ngegas.png?v=2',
     meta: 'Full HD · Narasi',
     externalUrl: 'https://www.gazzkeun.cloud',
     externalLabel: 'gazzkeun.cloud',
@@ -82,6 +82,7 @@ export function WelcomeScreen() {
   const [videoIndex, setVideoIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const touchStartX = useRef<number | null>(null);
 
   const activeVideo = PROMO_VIDEOS[videoIndex];
 
@@ -287,7 +288,23 @@ export function WelcomeScreen() {
                   </div>
 
                   {/* Swipeable Video Stage */}
-                  <div className="relative w-full aspect-video bg-navy-950 overflow-hidden">
+                  <div
+                    className="relative w-full aspect-video bg-navy-950 overflow-hidden"
+                    onTouchStart={(e) => {
+                      touchStartX.current = e.touches[0]?.clientX ?? null;
+                    }}
+                    onTouchEnd={(e) => {
+                      if (touchStartX.current === null) return;
+                      const endX = e.changedTouches[0]?.clientX ?? touchStartX.current;
+                      const deltaX = endX - touchStartX.current;
+                      touchStartX.current = null;
+                      if (deltaX < -60) {
+                        goToVideo(videoIndex + 1);
+                      } else if (deltaX > 60) {
+                        goToVideo(videoIndex - 1);
+                      }
+                    }}
+                  >
                     <AnimatePresence mode="wait" initial={false} custom={direction}>
                       <motion.div
                         key={activeVideo.id}
@@ -296,27 +313,18 @@ export function WelcomeScreen() {
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: direction > 0 ? -48 : 48 }}
                         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                        drag="x"
-                        dragConstraints={{ left: 0, right: 0 }}
-                        dragElastic={0.22}
-                        onDragEnd={(_, info) => {
-                          if (info.offset.x < -55) {
-                            goToVideo(videoIndex + 1);
-                          } else if (info.offset.x > 55) {
-                            goToVideo(videoIndex - 1);
-                          }
-                        }}
-                        className="w-full h-full cursor-grab active:cursor-grabbing"
+                        className="w-full h-full"
                       >
                         <video
                           ref={videoRef}
                           key={activeVideo.src}
+                          src={activeVideo.src}
                           controls
+                          playsInline
                           preload="metadata"
                           poster={activeVideo.poster}
                           className="w-full h-full object-contain bg-navy-950"
                         >
-                          <source src={activeVideo.src} type="video/mp4" />
                           Browser Anda tidak mendukung pemutar video HTML5.
                         </video>
                       </motion.div>
