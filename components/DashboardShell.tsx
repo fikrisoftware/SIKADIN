@@ -6,6 +6,7 @@ import {
   Building2,
   Database,
   Eye,
+  Landmark,
   Lock,
   LogOut,
   Megaphone,
@@ -23,6 +24,7 @@ import { PosModule } from './PosModule';
 import { InventoryModule } from './InventoryModule';
 import { CustomersModule } from './CustomersModule';
 import { MarketingModule } from './MarketingModule';
+import { FinanceGatewayModule } from './FinanceGatewayModule';
 import { AnalyticsModule } from './AnalyticsModule';
 import { HqOverviewModule } from './HqOverviewModule';
 import { RoleAccessModule } from './RoleAccessModule';
@@ -73,6 +75,14 @@ const NAV_ITEMS: Array<{
     icon: Megaphone,
   },
   {
+    id: 'finance',
+    label: 'Keuangan & Gateway',
+    title: 'Keuangan, Payment Gateway & Penarikan Dana',
+    subtitle:
+      'Pantau saldo, rekonsiliasi Midtrans/DOKU/Xendit, cairkan settlement, dan tarik dana ke bank.',
+    icon: Landmark,
+  },
+  {
     id: 'analytics',
     label: 'Analisis Kinerja',
     title: 'Analisis Penjualan & Kinerja',
@@ -105,6 +115,7 @@ export function DashboardShell() {
     products,
     customers,
     transactions,
+    reconciliations,
     roleInvites,
     logout,
   } = useAppData();
@@ -138,6 +149,9 @@ export function DashboardShell() {
     transactions.length === 0;
 
   const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
+  const pendingSettlementsCount = reconciliations.filter(
+    (r) => r.status === 'Tertahan' || r.status === 'Menunggu'
+  ).length;
   const pendingInvitesCount = roleInvites.filter((i) => i.status === 'Menunggu').length;
 
   const handleSeedDemo = async () => {
@@ -289,6 +303,15 @@ export function DashboardShell() {
                   {lowStockCount}
                 </span>
               )}
+              {item.id === 'finance' && pendingSettlementsCount > 0 && (
+                <span
+                  className={`font-mono text-[11px] font-semibold tabular-nums ${
+                    active ? 'text-white' : 'text-kadin-orange-light'
+                  }`}
+                >
+                  {pendingSettlementsCount}
+                </span>
+              )}
               {item.id === 'access' && pendingInvitesCount > 0 && (
                 <span
                   className={`font-mono text-[11px] font-semibold tabular-nums ${
@@ -428,7 +451,7 @@ export function DashboardShell() {
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-xs text-slate-500">
                 <span className="hidden sm:inline font-display font-bold text-navy-900">
-                  KADIN <span className="text-kadin-orange">DIGI</span>
+                  SI <span className="text-kadin-orange">DIKA</span>
                 </span>
                 <span className="hidden sm:inline text-slate-300" aria-hidden="true">
                   /
@@ -549,6 +572,7 @@ export function DashboardShell() {
               {activeTab === 'inventory' && permissions.canManageInventory && <InventoryModule />}
               {activeTab === 'customers' && <CustomersModule />}
               {activeTab === 'marketing' && permissions.canManageMarketing && <MarketingModule />}
+              {activeTab === 'finance' && permissions.canManageFinance && <FinanceGatewayModule />}
               {activeTab === 'analytics' && permissions.canViewAnalytics && <AnalyticsModule />}
               {activeTab === 'access' && permissions.canManageTeam && <RoleAccessModule />}
             </>

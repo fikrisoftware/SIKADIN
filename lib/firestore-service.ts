@@ -9,6 +9,7 @@ import {
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
 import {
+  BankCode,
   BOOTSTRAP_SUPER_ADMIN_EMAIL,
   Campaign,
   CampaignChannel,
@@ -17,10 +18,15 @@ import {
   Customer,
   CustomerSegment,
   emailToInviteId,
+  GatewayChannel,
   generateDocId,
   generateReceiptNo,
   LIMITS,
+  PaymentGateway,
+  PaymentGatewayConfig,
   PaymentMethod,
+  PayoutRecord,
+  PayoutStatus,
   Product,
   ProductCategory,
   RoleInvite,
@@ -34,6 +40,7 @@ import {
   UserRole,
   UserRoleProfile,
 } from './types';
+import { calculateMdrFee, getBankName } from './payment-gateways';
 
 function clampString(val: string, max: number): string {
   return val.trim().slice(0, max);
@@ -653,6 +660,18 @@ export async function deleteCampaign(campaignId: string): Promise<void> {
 }
 
 // === POS Checkout & Void ===
+export interface GatewayCheckoutMeta {
+  gateway: PaymentGateway;
+  channel: GatewayChannel;
+  providerRef: string;
+  mode: 'sandbox' | 'live';
+  mdrFee: number;
+  netAmount: number;
+  paymentCode: string;
+  autoSettle: boolean;
+  receiptNoOverride?: string;
+}
+
 export interface CheckoutPayload {
   items: TransactionItem[];
   productsMap: Map<string, Product>;
@@ -661,6 +680,7 @@ export interface CheckoutPayload {
   discount: number;
   paymentMethod: PaymentMethod;
   amountPaid: number;
+  gatewayPayment?: GatewayCheckoutMeta;
 }
 
 export async function checkoutTransaction(
@@ -672,7 +692,11 @@ export async function checkoutTransaction(
   }
 
   const txId = generateDocId('tx');
-  const receiptNo = generateReceiptNo();
+  const receiptNo =
+    payload.gatewayPayment?.receiptNoOverride &&
+    /^[A-Z0-9_-]{4,40}$/.test(payload.gatewayPayment.receiptNoOverride)
+      ? payload.gatewayPayment.receiptNoOverride
+      : generateReceiptNo();
   const saleDate = todayISO();
 
   const sanitizedItems: TransactionItem[] = payload.items.map((item) => ({
@@ -781,6 +805,38 @@ export async function checkoutTransaction(
     });
   }
 
+  // 5. Atomically record Payment Gateway Reconciliation ledger entry for non-cash gateway sales
+  if (payload.gatewayPayment && payload.paymentMethod !== 'Tunai') {
+    const gw = payload.gatewayPayment;
+    const recId = generateDocId('rec');
+    const isInstantSettled = gw.autoSettle && gw.channel === 'QRIS';
+    const safeMdr = clampNumber(Math.round(gw.mdrFee), 0, Math.min(total, 100_000_000));
+    const safeNet = Math.max(0, total - safeMdr);
+
+    batch.set(doc(db, 'paymentReconciliations', recId), {
+      ownerId,
+      transactionId: txId,
+      receiptNo,
+      gateway: gw.gateway,
+      channel: gw.channel,
+      providerRef: clampString(gw.providerRef, LIMITS.PROVIDER_REF_MAX) || `REF-${receiptNo}`,
+      mode: gw.mode,
+      grossAmount: total,
+      mdrFee: safeMdr,
+      netAmount: safeNet,
+      status: isInstantSettled ? 'Settled' : 'Tertahan',
+      paymentCode: clampString(gw.paymentCode, LIMITS.PAYMENT_CODE_MAX),
+      customerName: txDocData.customerName,
+      saleDate,
+      settledAt: isInstantSettled ? saleDate : '',
+      note: isInstantSettled
+        ? `Settlement instan QRIS (${gw.gateway} ${gw.mode === 'live' ? 'Live' : 'Sandbox'})`
+        : `Menunggu settlement ${gw.gateway} (${gw.channel})`,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+
   try {
     await batch.commit();
     return {
@@ -833,6 +889,168 @@ export async function voidTransaction(
     await batch.commit();
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+// === Payment Gateway Config, Reconciliation & Payouts ===
+export interface PaymentConfigInput {
+  defaultGateway: PaymentGateway;
+  enableMidtrans: boolean;
+  enableDoku: boolean;
+  enableXendit: boolean;
+  enableQris: boolean;
+  enableVa: boolean;
+  enableEwallet: boolean;
+  autoSettleQris: boolean;
+  bankCode: BankCode;
+  accountNumber: string;
+  accountHolder: string;
+}
+
+export async function savePaymentGatewayConfig(
+  ownerId: string,
+  input: PaymentConfigInput,
+  existing: PaymentGatewayConfig | null
+): Promise<void> {
+  const path = `paymentConfigs/${ownerId}`;
+  const ref = doc(db, 'paymentConfigs', ownerId);
+  const digitsOnly = input.accountNumber.replace(/\D/g, '').slice(0, LIMITS.ACCOUNT_NUM_MAX);
+  const sanitized = {
+    defaultGateway: input.defaultGateway,
+    enableMidtrans: Boolean(input.enableMidtrans),
+    enableDoku: Boolean(input.enableDoku),
+    enableXendit: Boolean(input.enableXendit),
+    enableQris: Boolean(input.enableQris),
+    enableVa: Boolean(input.enableVa),
+    enableEwallet: Boolean(input.enableEwallet),
+    autoSettleQris: Boolean(input.autoSettleQris),
+    bankCode: input.bankCode,
+    bankName: clampString(getBankName(input.bankCode), LIMITS.BANK_NAME_MAX),
+    accountNumber: digitsOnly,
+    accountHolder: clampString(input.accountHolder, LIMITS.NAME_MAX),
+  };
+
+  try {
+    if (existing) {
+      await updateDoc(ref, {
+        ...sanitized,
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      await setDoc(ref, {
+        ownerId,
+        ...sanitized,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+  } catch (error) {
+    handleFirestoreError(error, existing ? OperationType.UPDATE : OperationType.CREATE, path);
+  }
+}
+
+export async function settleReconciliation(recId: string, note?: string): Promise<void> {
+  const path = `paymentReconciliations/${recId}`;
+  try {
+    await updateDoc(doc(db, 'paymentReconciliations', recId), {
+      status: 'Settled',
+      settledAt: todayISO(),
+      note: clampString(note || 'Settlement dicairkan ke saldo siap tarik', LIMITS.NOTE_MAX),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function bulkSettleReconciliations(recIds: string[]): Promise<void> {
+  if (recIds.length === 0) return;
+  const batch = writeBatch(db);
+  const settledDate = todayISO();
+  for (const recId of recIds.slice(0, 200)) {
+    batch.update(doc(db, 'paymentReconciliations', recId), {
+      status: 'Settled',
+      settledAt: settledDate,
+      note: 'Settlement massal ke saldo siap tarik',
+      updatedAt: serverTimestamp(),
+    });
+  }
+  try {
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, 'paymentReconciliations/bulk');
+  }
+}
+
+export async function refundReconciliation(recId: string, note: string): Promise<void> {
+  const path = `paymentReconciliations/${recId}`;
+  try {
+    await updateDoc(doc(db, 'paymentReconciliations', recId), {
+      status: 'Refund',
+      settledAt: '',
+      note: clampString(note || 'Dana dikembalikan (Refund) oleh pemilik usaha', LIMITS.NOTE_MAX),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export interface CreatePayoutInput {
+  gateway: PaymentGateway;
+  providerRef: string;
+  mode: 'sandbox' | 'live';
+  bankCode: BankCode;
+  bankName: string;
+  accountNumber: string;
+  accountHolder: string;
+  amount: number;
+  transferFee: number;
+  netDisbursed: number;
+  status: PayoutStatus;
+  requestedBy: string;
+  note: string;
+}
+
+export async function createPayoutRecord(
+  ownerId: string,
+  input: CreatePayoutInput
+): Promise<PayoutRecord> {
+  const payoutId = generateDocId('po');
+  const path = `payouts/${payoutId}`;
+  const payoutDate = todayISO();
+  const digits = input.accountNumber.replace(/\D/g, '').slice(0, LIMITS.ACCOUNT_NUM_MAX);
+
+  const docData = {
+    ownerId,
+    gateway: input.gateway,
+    providerRef: clampString(input.providerRef, LIMITS.PROVIDER_REF_MAX),
+    mode: input.mode,
+    bankCode: input.bankCode,
+    bankName: clampString(input.bankName || getBankName(input.bankCode), LIMITS.BANK_NAME_MAX),
+    accountNumber: digits,
+    accountHolder: clampString(input.accountHolder, LIMITS.NAME_MAX),
+    amount: clampNumber(Math.round(input.amount), 10_000, 500_000_000),
+    transferFee: clampNumber(Math.round(input.transferFee), 0, 500_000),
+    netDisbursed: clampNumber(Math.round(input.netDisbursed), 0, 500_000_000),
+    status: input.status === 'Gagal' ? ('Diproses' as const) : input.status,
+    requestedBy: clampString(input.requestedBy || 'Pemilik Usaha', LIMITS.NAME_MAX),
+    note: clampString(input.note || 'Penarikan saldo penjualan SI DIKA', LIMITS.NOTE_MAX),
+    payoutDate,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  try {
+    await setDoc(doc(db, 'payouts', payoutId), docData);
+    return {
+      id: payoutId,
+      ...docData,
+      createdAt: undefined,
+      updatedAt: undefined,
+    };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
   }
 }
 
@@ -1144,11 +1362,14 @@ export async function seedSampleUmkmData(ownerId: string, ownerDisplayName: stri
     const cust = seed.custIdx !== null ? sampleCustomers[seed.custIdx] : null;
     const dateStr = todayISO(-seed.daysAgo);
 
+    const receiptNo = `KD-${dateStr.replace(/-/g, '')}-${1010 + idx}`;
+    const customerName = cust ? cust.name : 'Pelanggan Umum';
+
     batch2.set(doc(db, 'transactions', txId), {
       ownerId,
-      receiptNo: `KD-${dateStr.replace(/-/g, '')}-${1010 + idx}`,
+      receiptNo,
       customerId: cust ? cust.id : '',
-      customerName: cust ? cust.name : 'Pelanggan Umum',
+      customerName,
       items,
       itemCount,
       subtotal,
@@ -1165,6 +1386,38 @@ export async function seedSampleUmkmData(ownerId: string, ownerDisplayName: stri
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+
+    if (seed.payment !== 'Tunai') {
+      const sampleGateways: PaymentGateway[] = ['Midtrans', 'DOKU', 'Xendit'];
+      const gateway = sampleGateways[idx % sampleGateways.length];
+      const channel = seed.payment as GatewayChannel;
+      const { mdrFee, netAmount } = calculateMdrFee(gateway, channel, total);
+      const isSettled = seed.daysAgo >= 2 || channel === 'QRIS';
+      const recId = generateDocId('rec');
+
+      batch2.set(doc(db, 'paymentReconciliations', recId), {
+        ownerId,
+        transactionId: txId,
+        receiptNo,
+        gateway,
+        channel,
+        providerRef: `${gateway.toUpperCase()}-DEMO-${1010 + idx}`,
+        mode: 'sandbox',
+        grossAmount: total,
+        mdrFee,
+        netAmount,
+        status: isSettled ? 'Settled' : 'Tertahan',
+        paymentCode: `${gateway.toUpperCase()}-${channel.replace(/\s+/g, '')}-${1010 + idx}`,
+        customerName,
+        saleDate: dateStr,
+        settledAt: isSettled ? dateStr : '',
+        note: isSettled
+          ? `Settlement selesai (${gateway} Sandbox)`
+          : `Menunggu pencairan settlement ${gateway}`,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
   });
 
   for (const p of sampleProducts.slice(0, 3)) {

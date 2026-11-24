@@ -3,9 +3,11 @@
 import React, { useMemo, useState } from 'react';
 import {
   Check,
+  CheckCircle2,
   Copy,
   CreditCard,
   History,
+  Landmark,
   Lock,
   Minus,
   Package,
@@ -23,13 +25,19 @@ import {
 } from 'lucide-react';
 import { useAppData } from './AuthContext';
 import { checkoutTransaction, voidTransaction } from '@/lib/firestore-service';
+import { calculateMdrFee, GATEWAY_META } from '@/lib/payment-gateways';
 import {
   formatDateID,
   formatRupiah,
   formatTimestampID,
+  generateReceiptNo,
+  PAYMENT_GATEWAYS,
   PAYMENT_METHODS,
   PRODUCT_CATEGORIES,
   type Campaign,
+  type GatewayChannel,
+  type GatewayChargeResult,
+  type PaymentGateway,
   type PaymentMethod,
   type Product,
   type Transaction,
@@ -75,6 +83,7 @@ export function PosModule({ onNavigateInventory }: PosModuleProps) {
     customers,
     campaigns,
     transactions,
+    paymentConfig,
   } = useAppData();
 
   const [subView, setSubView] = useState<'kasir' | 'riwayat'>('kasir');
@@ -87,12 +96,48 @@ export function PosModule({ onNavigateInventory }: PosModuleProps) {
   const [voucherFeedback, setVoucherFeedback] = useState<string | null>(null);
   const [manualDiscount, setManualDiscount] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('QRIS');
+  const [chosenGateway, setChosenGateway] = useState<PaymentGateway | null>(null);
   const [cashReceived, setCashReceived] = useState<string>('');
   const [processing, setProcessing] = useState(false);
+  const [creatingCharge, setCreatingCharge] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [pendingCharge, setPendingCharge] = useState<{
+    charge: GatewayChargeResult;
+    receiptNo: string;
+  } | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
   const [receiptTx, setReceiptTx] = useState<Transaction | null>(null);
   const [copiedReceipt, setCopiedReceipt] = useState(false);
   const [voidingId, setVoidingId] = useState<string | null>(null);
+
+  const enabledGateways = useMemo<PaymentGateway[]>(() => {
+    if (!paymentConfig) return [...PAYMENT_GATEWAYS];
+    const list: PaymentGateway[] = [];
+    if (paymentConfig.enableMidtrans) list.push('Midtrans');
+    if (paymentConfig.enableDoku) list.push('DOKU');
+    if (paymentConfig.enableXendit) list.push('Xendit');
+    return list.length > 0 ? list : ['Midtrans'];
+  }, [paymentConfig]);
+
+  const activeGateway: PaymentGateway =
+    chosenGateway && enabledGateways.includes(chosenGateway)
+      ? chosenGateway
+      : paymentConfig && enabledGateways.includes(paymentConfig.defaultGateway)
+        ? paymentConfig.defaultGateway
+        : enabledGateways[0];
+
+  const availablePaymentMethods = useMemo<PaymentMethod[]>(() => {
+    if (!paymentConfig) return [...PAYMENT_METHODS];
+    const list: PaymentMethod[] = ['Tunai'];
+    if (paymentConfig.enableQris) list.push('QRIS');
+    if (paymentConfig.enableVa) list.push('Transfer Bank');
+    if (paymentConfig.enableEwallet) list.push('E-Wallet');
+    return list;
+  }, [paymentConfig]);
+
+  const effectivePaymentMethod: PaymentMethod = availablePaymentMethods.includes(paymentMethod)
+    ? paymentMethod
+    : availablePaymentMethods[0];
 
   const productsMap = useMemo(() => {
     const map = new Map<string, Product>();
@@ -134,7 +179,12 @@ export function PosModule({ onNavigateInventory }: PosModuleProps) {
 
   const grandTotal = Math.max(0, subtotal - computedDiscount);
   const cashNum = Number(cashReceived.replace(/\D/g, '')) || 0;
-  const changeAmount = paymentMethod === 'Tunai' ? Math.max(0, cashNum - grandTotal) : 0;
+  const changeAmount = effectivePaymentMethod === 'Tunai' ? Math.max(0, cashNum - grandTotal) : 0;
+
+  const mdrPreview = useMemo(() => {
+    if (effectivePaymentMethod === 'Tunai') return null;
+    return calculateMdrFee(activeGateway, effectivePaymentMethod as GatewayChannel, grandTotal);
+  }, [activeGateway, effectivePaymentMethod, grandTotal]);
 
   const addToCart = (product: Product) => {
     setCheckoutError(null);
@@ -225,17 +275,11 @@ export function PosModule({ onNavigateInventory }: PosModuleProps) {
     setVoucherFeedback(null);
   };
 
-  const handleCheckout = async () => {
+  const finalizeOrder = async (chargePayload?: {
+    charge: GatewayChargeResult;
+    receiptNo: string;
+  }) => {
     if (!user || !activeWorkspaceId) return;
-    if (cart.length === 0) {
-      setCheckoutError('Tambahkan minimal satu produk ke keranjang terlebih dahulu.');
-      return;
-    }
-    if (paymentMethod === 'Tunai' && cashNum < grandTotal) {
-      setCheckoutError('Nominal uang tunai diterima kurang dari total tagihan.');
-      return;
-    }
-
     setProcessing(true);
     setCheckoutError(null);
     try {
@@ -245,9 +289,23 @@ export function PosModule({ onNavigateInventory }: PosModuleProps) {
         customer: selectedCustomer,
         appliedCampaign,
         discount: computedDiscount,
-        paymentMethod,
-        amountPaid: paymentMethod === 'Tunai' ? cashNum : grandTotal,
+        paymentMethod: effectivePaymentMethod,
+        amountPaid: effectivePaymentMethod === 'Tunai' ? cashNum : grandTotal,
+        gatewayPayment: chargePayload
+          ? {
+              gateway: chargePayload.charge.gateway,
+              channel: chargePayload.charge.channel,
+              providerRef: chargePayload.charge.providerRef,
+              mode: chargePayload.charge.mode,
+              mdrFee: chargePayload.charge.mdrFee,
+              netAmount: chargePayload.charge.netAmount,
+              paymentCode: chargePayload.charge.paymentCode,
+              autoSettle: paymentConfig ? paymentConfig.autoSettleQris : true,
+              receiptNoOverride: chargePayload.receiptNo,
+            }
+          : undefined,
       });
+      setPendingCharge(null);
       setReceiptTx(tx);
       setCart([]);
       setSelectedCustomerId('');
@@ -260,6 +318,71 @@ export function PosModule({ onNavigateInventory }: PosModuleProps) {
       setCheckoutError(err instanceof Error ? err.message : 'Gagal memproses transaksi.');
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const handleCheckout = async () => {
+    if (!user || !activeWorkspaceId) return;
+    if (cart.length === 0) {
+      setCheckoutError('Tambahkan minimal satu produk ke keranjang terlebih dahulu.');
+      return;
+    }
+
+    if (effectivePaymentMethod === 'Tunai') {
+      if (cashNum < grandTotal) {
+        setCheckoutError('Nominal uang tunai diterima kurang dari total tagihan.');
+        return;
+      }
+      await finalizeOrder();
+      return;
+    }
+
+    if (grandTotal < 1_000) {
+      setCheckoutError('Minimal tagihan payment gateway non-tunai adalah Rp 1.000.');
+      return;
+    }
+
+    // Create gateway charge via authenticated server-side API route
+    setCreatingCharge(true);
+    setCheckoutError(null);
+    try {
+      const idToken = await user.getIdToken();
+      const draftReceiptNo = generateReceiptNo();
+      const res = await fetch('/api/payments/charge', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          gateway: activeGateway,
+          channel: effectivePaymentMethod,
+          amount: grandTotal,
+          orderId: draftReceiptNo,
+          customerName: selectedCustomer?.name || 'Pelanggan Umum',
+        }),
+      });
+      const data = (await res.json()) as GatewayChargeResult & { error?: string };
+      if (!res.ok || !data.providerRef) {
+        throw new Error(data.error || 'Gagal membuat tagihan pada payment gateway.');
+      }
+      setPendingCharge({ charge: data, receiptNo: draftReceiptNo });
+    } catch (err) {
+      setCheckoutError(
+        err instanceof Error ? err.message : 'Gagal menghubungi server payment gateway.'
+      );
+    } finally {
+      setCreatingCharge(false);
+    }
+  };
+
+  const handleCopyPaymentCode = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    } catch {
+      // Clipboard not available
     }
   };
 
@@ -632,8 +755,8 @@ export function PosModule({ onNavigateInventory }: PosModuleProps) {
               <div>
                 <p className="text-xs font-medium text-slate-700 mb-2">Metode Pembayaran</p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {PAYMENT_METHODS.map((method) => {
-                    const active = paymentMethod === method;
+                  {availablePaymentMethods.map((method) => {
+                    const active = effectivePaymentMethod === method;
                     return (
                       <button
                         key={method}
@@ -652,7 +775,51 @@ export function PosModule({ onNavigateInventory }: PosModuleProps) {
                 </div>
               </div>
 
-              {paymentMethod === 'Tunai' && (
+              {/* Payment Gateway Selector & Live MDR Preview (Non-Cash) */}
+              {effectivePaymentMethod !== 'Tunai' && (
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-navy-900">
+                      <Landmark className="w-3.5 h-3.5 text-kadin-orange" />
+                      Pilih Payment Gateway
+                    </span>
+                    {mdrPreview && (
+                      <span className="text-[11px] font-mono text-slate-500">
+                        MDR {mdrPreview.rateLabel}
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {enabledGateways.map((gw) => {
+                      const active = activeGateway === gw;
+                      return (
+                        <button
+                          key={gw}
+                          type="button"
+                          onClick={() => setChosenGateway(gw)}
+                          className={`px-2 py-1.5 text-xs font-semibold rounded-md border transition-colors cursor-pointer ${
+                            active
+                              ? 'bg-kadin-orange text-white border-kadin-orange'
+                              : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          {gw}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {mdrPreview && grandTotal > 0 && (
+                    <div className="flex items-center justify-between text-[11px] text-slate-600 pt-1 border-t border-slate-200 tabular-nums">
+                      <span>Est. Potongan MDR: -{formatRupiah(mdrPreview.mdrFee)}</span>
+                      <span className="font-mono font-semibold text-emerald-700">
+                        Netto: {formatRupiah(mdrPreview.netAmount)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {effectivePaymentMethod === 'Tunai' && (
                 <div className="space-y-2">
                   <label className="block text-xs font-medium text-slate-700">
                     Uang Tunai Diterima (Rp)
@@ -704,7 +871,7 @@ export function PosModule({ onNavigateInventory }: PosModuleProps) {
                     {formatRupiah(grandTotal)}
                   </span>
                 </div>
-                {paymentMethod === 'Tunai' && cashNum > 0 && (
+                {effectivePaymentMethod === 'Tunai' && cashNum > 0 && (
                   <div className="flex justify-between text-xs text-slate-600 pt-1">
                     <span>Kembalian</span>
                     <span className="font-mono font-semibold text-emerald-700 tabular-nums">
@@ -725,21 +892,25 @@ export function PosModule({ onNavigateInventory }: PosModuleProps) {
 
               <button
                 type="button"
-                disabled={processing || cart.length === 0}
+                disabled={processing || creatingCharge || cart.length === 0}
                 onClick={handleCheckout}
                 className="w-full py-3 px-4 bg-kadin-orange text-white text-sm font-semibold rounded-lg hover:bg-kadin-orange-hover disabled:opacity-50 transition-colors inline-flex items-center justify-center gap-2 cursor-pointer"
               >
-                {paymentMethod === 'QRIS' ? (
+                {effectivePaymentMethod === 'QRIS' ? (
                   <QrCode className="w-4 h-4" />
-                ) : paymentMethod === 'Tunai' ? (
+                ) : effectivePaymentMethod === 'Tunai' ? (
                   <Wallet className="w-4 h-4" />
                 ) : (
                   <CreditCard className="w-4 h-4" />
                 )}
                 <span>
-                  {processing
-                    ? 'Memproses Transaksi...'
-                    : `Selesaikan Transaksi (${paymentMethod}) · ${formatRupiah(grandTotal)}`}
+                  {creatingCharge
+                    ? `Membuat Tagihan ${activeGateway}...`
+                    : processing
+                      ? 'Memproses Transaksi...'
+                      : effectivePaymentMethod === 'Tunai'
+                        ? `Selesaikan Transaksi (Tunai) · ${formatRupiah(grandTotal)}`
+                        : `Buat Tagihan ${activeGateway} (${effectivePaymentMethod}) · ${formatRupiah(grandTotal)}`}
                 </span>
               </button>
             </div>
@@ -986,6 +1157,183 @@ export function PosModule({ onNavigateInventory }: PosModuleProps) {
                 <Printer className="w-3.5 h-3.5" />
                 Cetak Struk
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Gateway Charge Confirmation Modal (QRIS / Virtual Account / E-Wallet) */}
+      {pendingCharge && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="gateway-charge-title"
+        >
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-5 py-3.5 bg-navy-950 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Landmark className="w-4 h-4 text-kadin-orange-light" />
+                <div>
+                  <h3 id="gateway-charge-title" className="text-sm font-bold">
+                    Tagihan {GATEWAY_META[pendingCharge.charge.gateway].name}
+                  </h3>
+                  <p className="text-[11px] text-blue-200">
+                    {pendingCharge.charge.channel} ·{' '}
+                    {pendingCharge.charge.mode === 'live' ? 'Live API' : 'Sandbox Simulasi'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={processing}
+                onClick={() => setPendingCharge(null)}
+                className="p-1.5 text-blue-200 hover:text-white rounded-lg cursor-pointer"
+                aria-label="Batalkan tagihan"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="text-center pb-3 border-b border-slate-100">
+                <p className="text-xs text-slate-500">Total Tagihan Pelanggan</p>
+                <p className="text-2xl font-extrabold font-mono text-navy-900 tabular-nums mt-0.5">
+                  {formatRupiah(pendingCharge.charge.grossAmount)}
+                </p>
+                <p className="text-[11px] font-mono text-slate-500 mt-1">
+                  Struk: {pendingCharge.receiptNo} · Ref: {pendingCharge.charge.providerRef}
+                </p>
+              </div>
+
+              {pendingCharge.charge.channel === 'QRIS' ? (
+                <div className="flex flex-col items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div
+                    className="grid grid-cols-11 gap-0.5 p-3 bg-white border border-slate-200 rounded-lg"
+                    aria-label="Kode QRIS Dinamis SI DIKA"
+                  >
+                    {Array.from({ length: 121 }).map((_, idx) => {
+                      const row = Math.floor(idx / 11);
+                      const col = idx % 11;
+                      const isCorner =
+                        (row < 3 && col < 3) || (row < 3 && col > 7) || (row > 7 && col < 3);
+                      const codeChar =
+                        pendingCharge.charge.paymentCode.charCodeAt(
+                          idx % pendingCharge.charge.paymentCode.length
+                        ) || 0;
+                      const filled = isCorner || (codeChar + idx * 7) % 3 !== 0;
+                      return (
+                        <span
+                          key={idx}
+                          className={`w-3 h-3 block ${filled ? 'bg-navy-950' : 'bg-white'}`}
+                        />
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs font-semibold text-navy-900">
+                    Scan QRIS dengan GoPay, OVO, DANA, BCA Mobile, Livin&apos;, atau BRImo
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyPaymentCode(pendingCharge.charge.paymentCode)}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-navy-900 hover:underline cursor-pointer"
+                  >
+                    {copiedCode ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                    {copiedCode ? 'Payload QRIS Tersalin' : 'Salin Payload QRIS'}
+                  </button>
+                </div>
+              ) : pendingCharge.charge.channel === 'Transfer Bank' ? (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-center">
+                  <p className="text-xs font-semibold text-slate-600">
+                    {pendingCharge.charge.bankLabel || 'Nomor Virtual Account'}
+                  </p>
+                  <p className="text-xl font-extrabold font-mono tracking-wider text-navy-900 tabular-nums">
+                    {pendingCharge.charge.paymentCode}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyPaymentCode(pendingCharge.charge.paymentCode)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-navy-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 cursor-pointer"
+                  >
+                    {copiedCode ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                    {copiedCode ? 'Nomor VA Tersalin' : 'Salin Nomor Virtual Account'}
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <p className="text-xs font-semibold text-slate-700">
+                    Tautan / Kode Pembayaran E-Wallet ({pendingCharge.charge.bankLabel || 'E-Wallet'})
+                  </p>
+                  <code className="block w-full text-[11px] font-mono bg-white border border-slate-200 rounded p-2.5 text-slate-800 break-all">
+                    {pendingCharge.charge.paymentUrl || pendingCharge.charge.paymentCode}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleCopyPaymentCode(
+                        pendingCharge.charge.paymentUrl || pendingCharge.charge.paymentCode
+                      )
+                    }
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-navy-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 cursor-pointer"
+                  >
+                    {copiedCode ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                    {copiedCode ? 'Tautan Tersalin' : 'Salin Tautan Pembayaran'}
+                  </button>
+                </div>
+              )}
+
+              <div className="text-xs space-y-1 bg-slate-50 border border-slate-200 rounded-lg p-3 tabular-nums">
+                <div className="flex justify-between text-slate-600">
+                  <span>Potongan MDR ({pendingCharge.charge.gateway})</span>
+                  <span className="font-mono text-red-600">
+                    -{formatRupiah(pendingCharge.charge.mdrFee)}
+                  </span>
+                </div>
+                <div className="flex justify-between font-semibold text-emerald-700">
+                  <span>Estimasi Dana Netto Toko</span>
+                  <span className="font-mono">{formatRupiah(pendingCharge.charge.netAmount)}</span>
+                </div>
+              </div>
+
+              {checkoutError && (
+                <p role="alert" className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-2.5">
+                  {checkoutError}
+                </p>
+              )}
+
+              <div className="flex items-center gap-2.5 pt-1">
+                <button
+                  type="button"
+                  disabled={processing}
+                  onClick={() => setPendingCharge(null)}
+                  className="px-4 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={processing}
+                  onClick={() => finalizeOrder(pendingCharge)}
+                  className="flex-1 py-2.5 px-4 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-60 transition-colors inline-flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  {processing
+                    ? 'Mencatat Transaksi & Rekonsiliasi...'
+                    : 'Konfirmasi Lunas & Cetak Struk'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
