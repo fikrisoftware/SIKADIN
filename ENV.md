@@ -16,16 +16,41 @@ Dokumen ini berisi daftar lengkap variabel lingkungan (*environment variables*) 
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | **Wajib**\* | `lib/firebase.ts` (Client) | `firebase-applet-config.json` |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | **Wajib**\* | `lib/firebase.ts` (Client) | `firebase-applet-config.json` |
 | `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | Opsional | `lib/firebase.ts` (Client) | `""` (Kosong) |
+| `MIDTRANS_SERVER_KEY` | Opsional\*\* | `lib/payment-server.ts` (Server) | *Mode Sandbox Simulasi* |
+| `MIDTRANS_IS_PRODUCTION` | Opsional | `lib/payment-server.ts` (Server) | `false` |
+| `MIDTRANS_IRIS_API_KEY` | Opsional\*\* | `lib/payment-server.ts` (Server) | *Mode Sandbox Simulasi* |
+| `DOKU_CLIENT_ID` | Opsional\*\* | `lib/payment-server.ts` (Server) | *Mode Sandbox Simulasi* |
+| `DOKU_SECRET_KEY` | Opsional\*\* | `lib/payment-server.ts` (Server) | *Mode Sandbox Simulasi* |
+| `DOKU_IS_PRODUCTION` | Opsional | `lib/payment-server.ts` (Server) | `false` |
+| `XENDIT_SECRET_KEY` | Opsional\*\* | `lib/payment-server.ts` (Server) | *Mode Sandbox Simulasi* |
+| `XENDIT_CALLBACK_TOKEN` | Opsional\*\* | `app/api/payments/webhook/[gateway]/route.ts` | *Mode Sandbox Simulasi* |
 | `GEMINI_API_KEY` | Opsional | Server / API AI Studio | `""` |
 | `APP_URL` | Opsional | Server / Metadata URL | `http://localhost:3000` |
 | `DISABLE_HMR` | Opsional | `next.config.ts` (Webpack) | `false` |
 
 > \*) **Catatan Penting Konfigurasi Firebase:**
 > Aplikasi telah dilengkapi sistem *dual-mode fallback*. Jika variabel `NEXT_PUBLIC_FIREBASE_*` tidak didefinisikan dalam `.env.local` atau environment hosting, sistem akan membaca file `firebase-applet-config.json`. Namun, untuk deployment produksi (Vercel, Firebase App Hosting, Cloud Run, Docker), variabel `NEXT_PUBLIC_FIREBASE_*` **wajib** diset agar tidak bergantung pada file statis JSON.
+>
+> \*\*) **Catatan Payment Gateway (One Payment System):**
+> Seluruh kunci rahasia Payment Gateway (**Midtrans**, **DOKU**, **Xendit**) hanya dibaca di sisi server (`NEXT_PUBLIC_` **dilarang**). Jika dikosongkan, aplikasi otomatis berjalan dalam **Mode Sandbox Simulasi** sehingga kasir, rekonsiliasi, dan payout tetap bisa diuji tanpa kredensial live.
 
 ---
 
 ## 2. Penjelasan Rinci Setiap Variabel
+
+### B. Konfigurasi Payment Gateway (Midtrans, DOKU, Xendit) — Server-Side Only
+
+1. **Midtrans (`MIDTRANS_SERVER_KEY`, `MIDTRANS_IS_PRODUCTION`, `MIDTRANS_IRIS_API_KEY`)**
+   - **Kategori**: Opsional (Wajib untuk Live API Midtrans)
+   - **Fungsi**: Digunakan untuk membuat tagihan Core API / Snap (QRIS, VA, E-Wallet), verifikasi signature webhook SHA-512, dan pencairan dana (disbursement) via Midtrans Iris.
+
+2. **DOKU Jokul (`DOKU_CLIENT_ID`, `DOKU_SECRET_KEY`, `DOKU_IS_PRODUCTION`)**
+   - **Kategori**: Opsional (Wajib untuk Live API DOKU)
+   - **Fungsi**: Autentikasi & verifikasi HMAC-SHA256 webhook DOKU Jokul Checkout serta DOKU Payout.
+
+3. **Xendit (`XENDIT_SECRET_KEY`, `XENDIT_CALLBACK_TOKEN`)**
+   - **Kategori**: Opsional (Wajib untuk Live API Xendit)
+   - **Fungsi**: Pembuatan QRIS, Virtual Account, E-Wallet, Xendit Disbursement, serta validasi `x-callback-token` pada webhook.
 
 ### A. Konfigurasi Firebase (Autentikasi & Database)
 
