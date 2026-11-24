@@ -181,13 +181,13 @@ export function DashboardShell() {
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-navy-950 text-white border-r border-white/10">
-      {/* Brand Lockup with Si KADI */}
+      {/* Brand Lockup SI DIKA */}
       <div className="px-5 h-16 border-b border-white/10 flex items-center gap-3 shrink-0">
         <SiKadiIcon size="sm" variant="dark" />
         <div className="min-w-0">
           <KadinDigiWordmark dark className="text-base block leading-none" />
           <p className="text-[11px] text-blue-200/80 mt-1 truncate">
-            Si KADI · Sistem Kasir &amp; Inventori
+            Sistem Kasir &amp; Inventori
           </p>
         </div>
       </div>
@@ -258,7 +258,7 @@ export function DashboardShell() {
       </div>
 
       {/* Primary Sidebar Navigation (Filtered by RBAC Role Permissions) */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto" aria-label="Menu Utama KADIN DIGI">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto" aria-label="Menu Utama SI DIKA">
         {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const active = activeTab === item.id;
@@ -493,10 +493,10 @@ export function DashboardShell() {
                 <SiKadiIcon size="md" variant="dark" />
                 <div>
                   <h2 className="text-base font-bold text-white">
-                    Selamat Datang di Si KADI — Sistem Kasir dan Inventori
+                    Selamat Datang di SI DIKA — Sistem Kasir dan Inventori
                   </h2>
                   <p className="text-sm text-blue-100/85 mt-1 max-w-2xl">
-                    Ruang kerja KADIN DIGI siap dipakai. Tambahkan produk pertama sendiri atau muat
+                    Ruang kerja SI DIKA siap dipakai. Tambahkan produk pertama sendiri atau muat
                     data contoh UMKM (katalog produk, pelanggan, voucher, dan transaksi 7 hari)
                     untuk mencoba seluruh fitur sekarang.
                   </p>
@@ -517,7 +517,7 @@ export function DashboardShell() {
 
           {/* Loading Skeleton */}
           {dataLoading ? (
-            <div className="space-y-4" aria-busy="true" aria-label="Memuat data KADIN DIGI">
+            <div className="space-y-4" aria-busy="true" aria-label="Memuat data SI DIKA">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[1, 2, 3, 4].map((n) => (
                   <div

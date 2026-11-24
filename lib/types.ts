@@ -285,9 +285,9 @@ export const ROLE_META: Record<
     id: 'super_admin_pusat',
     label: 'Super Admin Kantor Pusat',
     shortLabel: 'Super Admin',
-    scope: 'Otoritas Tertinggi Ekosistem KADIN DIGI',
+    scope: 'Otoritas Tertinggi Ekosistem SI DIKA',
     description:
-      'Kontrol penuh seluruh sistem KADIN DIGI termasuk pengangkatan dan pencabutan Admin Kantor Pusat & Super Admin, pengawasan lintas toko UMKM, audit log akses, dan simulasi tampilan peran.',
+      'Kontrol penuh seluruh sistem SI DIKA termasuk pengangkatan dan pencabutan Admin Kantor Pusat & Super Admin, pengawasan lintas toko UMKM, audit log akses, dan simulasi tampilan peran.',
     badgeBg: 'bg-orange-50 border-orange-200',
     badgeText: 'text-kadin-orange',
   },

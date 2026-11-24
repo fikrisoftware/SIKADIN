@@ -93,7 +93,7 @@ export function MarketingModule() {
   }, [activeStudioCampaign, customers]);
 
   const studioCopyText = useMemo(() => {
-    const storeName = storeProfile?.storeName || 'Toko UMKM KADIN DIGI';
+    const storeName = storeProfile?.storeName || 'Toko UMKM SI DIKA';
     const tagline = storeProfile?.tagline || 'UMKM Naik Kelas, Bisnis Makin Cuan';
     const cmp = activeStudioCampaign;
     const prod = featuredProduct;

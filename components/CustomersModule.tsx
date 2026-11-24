@@ -140,7 +140,7 @@ export function CustomersModule() {
   };
 
   const buildGreeting = (c: Customer) => {
-    const storeName = storeProfile?.storeName || 'KADIN DIGI UMKM';
+    const storeName = storeProfile?.storeName || 'SI DIKA UMKM';
     return `Halo Kak ${c.name}, terima kasih telah menjadi pelanggan ${c.segment} di ${storeName}! Saat ini Kakak memiliki ${c.loyaltyPoints} poin loyalitas. Yuk mampir lagi, kami ada promo spesial minggu ini.`;
   };
 

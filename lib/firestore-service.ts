@@ -167,7 +167,7 @@ export async function createOrUpdateRoleInvite(
   const path = `roleInvites/${inviteId}`;
   const batch = writeBatch(db);
 
-  const safeStore = clampString(input.storeName, LIMITS.STORE_NAME_MAX) || 'Usaha UMKM KADIN DIGI';
+  const safeStore = clampString(input.storeName, LIMITS.STORE_NAME_MAX) || 'Usaha UMKM SI DIKA';
   const safeNote = clampString(input.note, LIMITS.NOTE_MAX);
   const actorName = clampString(actor.displayName || 'Admin', LIMITS.NAME_MAX);
 
@@ -1176,7 +1176,7 @@ export async function seedSampleUmkmData(ownerId: string, ownerDisplayName: stri
       type: 'masuk',
       delta: p.stock,
       stockAfter: p.stock,
-      note: 'Stok awal katalog contoh KADIN DIGI',
+      note: 'Stok awal katalog contoh SI DIKA',
       createdAt: serverTimestamp(),
     });
   }

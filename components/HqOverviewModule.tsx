@@ -142,7 +142,7 @@ export function HqOverviewModule({
               </span>
             </div>
             <h2 className="text-lg sm:text-xl font-bold text-white mt-1">
-              Monitoring Ekosistem UMKM KADIN DIGI
+              Monitoring Ekosistem UMKM SI DIKA
             </h2>
             <p className="text-xs sm:text-sm text-blue-100/80 mt-1 max-w-2xl">
               Pantau pertumbuhan omzet, transaksi real-time seluruh UMKM binaan, serta masuk ke ruang
@@ -324,7 +324,7 @@ export function HqOverviewModule({
                           )}
                         </div>
                         <p className="text-xs text-slate-500 truncate max-w-[240px]">
-                          {store.tagline || 'UMKM Binaan KADIN DIGI'}
+                          {store.tagline || 'UMKM Binaan SI DIKA'}
                         </p>
                       </td>
                       <td className="py-3.5 px-4 text-xs text-slate-700 whitespace-nowrap">

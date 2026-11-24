@@ -279,7 +279,7 @@ export function PosModule({ onNavigateInventory }: PosModuleProps) {
   };
 
   const handleCopyReceipt = async (tx: Transaction) => {
-    const storeName = storeProfile?.storeName || 'KADIN DIGI UMKM';
+    const storeName = storeProfile?.storeName || 'SI DIKA UMKM';
     const lines = [
       `*${storeName}*`,
       `Struk: ${tx.receiptNo}`,
@@ -856,7 +856,7 @@ export function PosModule({ onNavigateInventory }: PosModuleProps) {
               <div className="flex items-center gap-2">
                 <Receipt className="w-4 h-4 text-navy-900" />
                 <h3 id="receipt-modal-title" className="text-sm font-bold text-slate-900">
-                  Struk Digital KADIN DIGI
+                  Struk Digital SI DIKA
                 </h3>
               </div>
               <button
@@ -872,7 +872,7 @@ export function PosModule({ onNavigateInventory }: PosModuleProps) {
             <div id="kadin-receipt-print" className="p-6 space-y-4">
               <div className="text-center border-b border-dashed border-slate-300 pb-4">
                 <p className="font-display font-extrabold text-base text-slate-900">
-                  {storeProfile?.storeName || 'KADIN DIGI UMKM'}
+                  {storeProfile?.storeName || 'SI DIKA UMKM'}
                 </p>
                 {storeProfile?.address && (
                   <p className="text-xs text-slate-500 mt-0.5">{storeProfile.address}</p>
@@ -961,7 +961,7 @@ export function PosModule({ onNavigateInventory }: PosModuleProps) {
               </div>
 
               <p className="text-center text-[11px] text-slate-500 pt-2 border-t border-dashed border-slate-200">
-                {storeProfile?.tagline || 'UMKM Naik Kelas, Bisnis Makin Cuan'} · KADIN DIGI
+                {storeProfile?.tagline || 'UMKM Naik Kelas, Bisnis Makin Cuan'} · SI DIKA
               </p>
             </div>
 

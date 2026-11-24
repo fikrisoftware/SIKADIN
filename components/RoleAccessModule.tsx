@@ -158,7 +158,7 @@ export function RoleAccessModule() {
     if (targetWorkspaceId === activeWorkspaceId && storeProfile?.storeName) {
       return storeProfile.storeName;
     }
-    return 'Usaha UMKM KADIN DIGI';
+    return 'Usaha UMKM SI DIKA';
   }, [activeWorkspaceId, allStores, inviteRole, storeProfile?.storeName, targetWorkspaceId]);
 
   const scopedProfiles = useMemo(() => {
@@ -241,7 +241,7 @@ export function RoleAccessModule() {
       setInviteNote('');
       setFeedback({
         type: 'success',
-        text: `Undangan ${ROLE_META[inviteRole].label} untuk ${normalizedEmail} berhasil disimpan. Peran akan aktif otomatis saat akun Google tersebut masuk ke KADIN DIGI.`,
+        text: `Undangan ${ROLE_META[inviteRole].label} untuk ${normalizedEmail} berhasil disimpan. Peran akan aktif otomatis saat akun Google tersebut masuk ke SI DIKA.`,
       });
     } catch (err) {
       setFeedback({
@@ -822,7 +822,7 @@ export function RoleAccessModule() {
             <ShieldCheck className="w-4 h-4 text-navy-900" />
             <div>
               <h3 className="text-sm font-bold text-slate-900">
-                Matriks Pemisahan Hak Akses 4 Peran KADIN DIGI
+                Matriks Pemisahan Hak Akses 4 Peran SI DIKA
               </h3>
               <p className="text-xs text-slate-500">
                 Seluruh batasan diterapkan secara berlapis di antarmuka sekaligus ditegakkan ketat di
@@ -884,7 +884,7 @@ export function RoleAccessModule() {
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
               Setiap undangan, perubahan peran, dan penonaktifan akun tercatat permanen demi
-              akuntabilitas tata kelola KADIN DIGI.
+              akuntabilitas tata kelola SI DIKA.
             </p>
           </div>
 
