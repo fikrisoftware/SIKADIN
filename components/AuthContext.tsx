@@ -28,6 +28,9 @@ import {
   getRolePermissions,
   type Campaign,
   type Customer,
+  type PaymentGatewayConfig,
+  type PaymentReconciliation,
+  type PayoutRecord,
   type Product,
   type RoleAuditLog,
   type RoleInvite,
@@ -60,6 +63,9 @@ interface AppDataContextValue {
   customers: Customer[];
   campaigns: Campaign[];
   transactions: Transaction[];
+  paymentConfig: PaymentGatewayConfig | null;
+  reconciliations: PaymentReconciliation[];
+  payouts: PayoutRecord[];
   allStores: StoreProfile[];
   hqTransactions: Transaction[];
   roleProfiles: UserRoleProfile[];
@@ -97,6 +103,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [paymentConfig, setPaymentConfig] = useState<PaymentGatewayConfig | null>(null);
+  const [reconciliations, setReconciliations] = useState<PaymentReconciliation[]>([]);
+  const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
 
   const [allStores, setAllStores] = useState<StoreProfile[]>([]);
   const [hqTransactions, setHqTransactions] = useState<Transaction[]>([]);
@@ -123,6 +132,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setCustomers([]);
         setCampaigns([]);
         setTransactions([]);
+        setPaymentConfig(null);
+        setReconciliations([]);
+        setPayouts([]);
         setAllStores([]);
         setHqTransactions([]);
         setRoleProfiles([]);
@@ -296,6 +308,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (err) => captureError(err, OperationType.LIST, 'transactions')
     );
 
+    const unsubPaymentConfig = onSnapshot(
+      doc(db, 'paymentConfigs', activeWorkspaceId),
+      (snap) => {
+        setPaymentConfig(snap.exists() ? (snap.data() as PaymentGatewayConfig) : null);
+      },
+      (err) => captureError(err, OperationType.GET, `paymentConfigs/${activeWorkspaceId}`)
+    );
+
+    let unsubReconciliations: (() => void) | null = null;
+    let unsubPayouts: (() => void) | null = null;
+
+    if (actualRole !== 'kasir') {
+      unsubReconciliations = onSnapshot(
+        query(
+          collection(db, 'paymentReconciliations'),
+          where('ownerId', '==', activeWorkspaceId)
+        ),
+        (snap) => {
+          const list: PaymentReconciliation[] = snap.docs.map((d) => ({
+            id: d.id,
+            ...(d.data() as Omit<PaymentReconciliation, 'id'>),
+          }));
+          setReconciliations(sortByTimestampDesc(list));
+        },
+        (err) => captureError(err, OperationType.LIST, 'paymentReconciliations')
+      );
+
+      unsubPayouts = onSnapshot(
+        query(collection(db, 'payouts'), where('ownerId', '==', activeWorkspaceId)),
+        (snap) => {
+          const list: PayoutRecord[] = snap.docs.map((d) => ({
+            id: d.id,
+            ...(d.data() as Omit<PayoutRecord, 'id'>),
+          }));
+          setPayouts(sortByTimestampDesc(list));
+        },
+        (err) => captureError(err, OperationType.LIST, 'payouts')
+      );
+    }
+
     return () => {
       unsubStore();
       unsubProducts();
@@ -303,8 +355,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       unsubCustomers();
       unsubCampaigns();
       unsubTransactions();
+      unsubPaymentConfig();
+      if (unsubReconciliations) unsubReconciliations();
+      if (unsubPayouts) unsubPayouts();
     };
-  }, [activeWorkspaceId, isAccountDisabled, isRoleReady, user]);
+  }, [activeWorkspaceId, actualRole, isAccountDisabled, isRoleReady, user]);
 
   useEffect(() => {
     if (!isRoleReady || !user || isAccountDisabled || actualRole === 'kasir') return;
@@ -470,6 +525,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         customers,
         campaigns,
         transactions,
+        paymentConfig,
+        reconciliations: actualRole === 'kasir' ? [] : reconciliations,
+        payouts: actualRole === 'kasir' ? [] : payouts,
         allStores: isActualHqAdmin ? allStores : [],
         hqTransactions: isActualHqAdmin ? hqTransactions : [],
         roleProfiles: actualRole === 'kasir' ? [] : roleProfiles,

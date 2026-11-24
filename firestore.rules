@@ -270,6 +270,71 @@ service cloud.firestore {
         && data.createdAt is timestamp;
     }
 
+    function isValidPaymentConfig(data) {
+      return data.keys().hasAll(['ownerId', 'defaultGateway', 'enableMidtrans', 'enableDoku', 'enableXendit', 'enableQris', 'enableVa', 'enableEwallet', 'autoSettleQris', 'bankCode', 'bankName', 'accountNumber', 'accountHolder', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'defaultGateway', 'enableMidtrans', 'enableDoku', 'enableXendit', 'enableQris', 'enableVa', 'enableEwallet', 'autoSettleQris', 'bankCode', 'bankName', 'accountNumber', 'accountHolder', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.defaultGateway is string && data.defaultGateway in ['Midtrans', 'DOKU', 'Xendit']
+        && data.enableMidtrans is bool
+        && data.enableDoku is bool
+        && data.enableXendit is bool
+        && data.enableQris is bool
+        && data.enableVa is bool
+        && data.enableEwallet is bool
+        && data.autoSettleQris is bool
+        && data.bankCode is string && data.bankCode in ['BCA', 'MANDIRI', 'BRI', 'BNI', 'BSI', 'CIMB', 'PERMATA', 'DANAMON', 'BTPN', 'JAGO']
+        && data.bankName is string && data.bankName.size() >= 1 && data.bankName.size() <= 60
+        && data.accountNumber is string && data.accountNumber.size() <= 24 && data.accountNumber.matches('^[0-9]*$')
+        && data.accountHolder is string && data.accountHolder.size() <= 120
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPaymentReconciliation(data) {
+      return data.keys().hasAll(['ownerId', 'transactionId', 'receiptNo', 'gateway', 'channel', 'providerRef', 'mode', 'grossAmount', 'mdrFee', 'netAmount', 'status', 'paymentCode', 'customerName', 'saleDate', 'settledAt', 'note', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'transactionId', 'receiptNo', 'gateway', 'channel', 'providerRef', 'mode', 'grossAmount', 'mdrFee', 'netAmount', 'status', 'paymentCode', 'customerName', 'saleDate', 'settledAt', 'note', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && isValidId(data.transactionId)
+        && data.receiptNo is string && data.receiptNo.size() >= 4 && data.receiptNo.size() <= 40 && data.receiptNo.matches('^[A-Z0-9_\\-]+$')
+        && data.gateway is string && data.gateway in ['Midtrans', 'DOKU', 'Xendit']
+        && data.channel is string && data.channel in ['QRIS', 'Transfer Bank', 'E-Wallet']
+        && data.providerRef is string && data.providerRef.size() >= 2 && data.providerRef.size() <= 100
+        && data.mode is string && data.mode in ['sandbox', 'live']
+        && data.grossAmount is number && data.grossAmount >= 0 && data.grossAmount <= 1000000000
+        && data.mdrFee is number && data.mdrFee >= 0 && data.mdrFee <= 100000000
+        && data.netAmount is number && data.netAmount >= 0 && data.netAmount <= 1000000000
+        && data.status is string && data.status in ['Menunggu', 'Tertahan', 'Settled', 'Refund', 'Gagal']
+        && data.paymentCode is string && data.paymentCode.size() <= 320
+        && data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 120
+        && data.saleDate is string && data.saleDate.size() >= 10 && data.saleDate.size() <= 20 && data.saleDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.settledAt is string && data.settledAt.size() <= 40
+        && data.note is string && data.note.size() <= 240
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPayout(data) {
+      return data.keys().hasAll(['ownerId', 'gateway', 'providerRef', 'mode', 'bankCode', 'bankName', 'accountNumber', 'accountHolder', 'amount', 'transferFee', 'netDisbursed', 'status', 'requestedBy', 'note', 'payoutDate', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'gateway', 'providerRef', 'mode', 'bankCode', 'bankName', 'accountNumber', 'accountHolder', 'amount', 'transferFee', 'netDisbursed', 'status', 'requestedBy', 'note', 'payoutDate', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.gateway is string && data.gateway in ['Midtrans', 'DOKU', 'Xendit']
+        && data.providerRef is string && data.providerRef.size() >= 2 && data.providerRef.size() <= 100
+        && data.mode is string && data.mode in ['sandbox', 'live']
+        && data.bankCode is string && data.bankCode in ['BCA', 'MANDIRI', 'BRI', 'BNI', 'BSI', 'CIMB', 'PERMATA', 'DANAMON', 'BTPN', 'JAGO']
+        && data.bankName is string && data.bankName.size() >= 1 && data.bankName.size() <= 60
+        && data.accountNumber is string && data.accountNumber.size() >= 6 && data.accountNumber.size() <= 24 && data.accountNumber.matches('^[0-9]+$')
+        && data.accountHolder is string && data.accountHolder.size() >= 2 && data.accountHolder.size() <= 120
+        && data.amount is number && data.amount >= 10000 && data.amount <= 500000000
+        && data.transferFee is number && data.transferFee >= 0 && data.transferFee <= 500000
+        && data.netDisbursed is number && data.netDisbursed >= 0 && data.netDisbursed <= 500000000
+        && data.status is string && data.status in ['Diproses', 'Berhasil', 'Gagal']
+        && data.requestedBy is string && data.requestedBy.size() >= 1 && data.requestedBy.size() <= 120
+        && data.note is string && data.note.size() <= 240
+        && data.payoutDate is string && data.payoutDate.size() >= 10 && data.payoutDate.size() <= 20 && data.payoutDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
     // === Collection Rules ===
 
     // 1. Store Profile (Contains PII: phone, address)
@@ -552,6 +617,76 @@ service cloud.firestore {
           isHqAdmin()
         );
       allow update: if false;
+      allow delete: if false;
+    }
+
+    // 10. Payment Gateway Configuration & Primary Bank Account (Contains Bank PII)
+    match /paymentConfigs/{ownerId} {
+      allow get: if isValidId(ownerId) && canOperateStore(ownerId);
+      allow list: if false;
+      allow create: if isValidId(ownerId)
+        && isValidPaymentConfig(incoming())
+        && incoming().ownerId == ownerId
+        && canManageStore(ownerId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(ownerId)
+        && isValidPaymentConfig(incoming())
+        && canManageStore(ownerId)
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['defaultGateway', 'enableMidtrans', 'enableDoku', 'enableXendit', 'enableQris', 'enableVa', 'enableEwallet', 'autoSettleQris', 'bankCode', 'bankName', 'accountNumber', 'accountHolder', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // 11. Payment Reconciliations & Settlement Ledger (Kasir writes on POS checkout, Pemilik/HQ settles or refunds)
+    match /paymentReconciliations/{recId} {
+      allow get: if isValidId(recId) && canManageStore(existing().ownerId);
+      allow list: if canManageStore(existing().ownerId);
+      allow create: if isValidId(recId)
+        && isValidPaymentReconciliation(incoming())
+        && canOperateStore(incoming().ownerId)
+        && incoming().status in ['Tertahan', 'Settled']
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/transactions/$(incoming().transactionId))
+        && getAfter(/databases/$(database)/documents/transactions/$(incoming().transactionId)).data.ownerId == incoming().ownerId;
+      allow update: if isValidId(recId)
+        && isValidPaymentReconciliation(incoming())
+        && canManageStore(existing().ownerId)
+        && existing().status in ['Menunggu', 'Tertahan', 'Settled']
+        && incoming().ownerId == existing().ownerId
+        && incoming().transactionId == existing().transactionId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'settledAt', 'note', 'updatedAt'])
+        && (
+          (existing().status in ['Menunggu', 'Tertahan'] && incoming().status in ['Settled', 'Refund', 'Gagal']) ||
+          (existing().status == 'Settled' && incoming().status == 'Refund')
+        );
+      allow delete: if false;
+    }
+
+    // 12. Payout / Disbursement History (Strictly Pemilik Usaha & HQ Admin — Contains Bank Account PII)
+    match /payouts/{payoutId} {
+      allow get: if isValidId(payoutId) && canManageStore(existing().ownerId);
+      allow list: if canManageStore(existing().ownerId);
+      allow create: if isValidId(payoutId)
+        && isValidPayout(incoming())
+        && canManageStore(incoming().ownerId)
+        && incoming().status in ['Diproses', 'Berhasil']
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(payoutId)
+        && isValidPayout(incoming())
+        && canManageStore(existing().ownerId)
+        && existing().status == 'Diproses'
+        && incoming().status in ['Berhasil', 'Gagal']
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'note', 'updatedAt']);
       allow delete: if false;
     }
   }

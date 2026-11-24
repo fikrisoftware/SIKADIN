@@ -156,11 +156,133 @@ export interface Transaction {
   updatedAt?: Timestamp;
 }
 
+export const PAYMENT_GATEWAYS = ['Midtrans', 'DOKU', 'Xendit'] as const;
+export type PaymentGateway = (typeof PAYMENT_GATEWAYS)[number];
+
+export const GATEWAY_CHANNELS = ['QRIS', 'Transfer Bank', 'E-Wallet'] as const;
+export type GatewayChannel = (typeof GATEWAY_CHANNELS)[number];
+
+export const RECONCILIATION_STATUSES = [
+  'Menunggu',
+  'Tertahan',
+  'Settled',
+  'Refund',
+  'Gagal',
+] as const;
+export type ReconciliationStatus = (typeof RECONCILIATION_STATUSES)[number];
+
+export const PAYOUT_STATUSES = ['Diproses', 'Berhasil', 'Gagal'] as const;
+export type PayoutStatus = (typeof PAYOUT_STATUSES)[number];
+
+export const SUPPORTED_BANKS = [
+  { code: 'BCA', name: 'Bank Central Asia (BCA)' },
+  { code: 'MANDIRI', name: 'Bank Mandiri' },
+  { code: 'BRI', name: 'Bank Rakyat Indonesia (BRI)' },
+  { code: 'BNI', name: 'Bank Negara Indonesia (BNI)' },
+  { code: 'BSI', name: 'Bank Syariah Indonesia (BSI)' },
+  { code: 'CIMB', name: 'CIMB Niaga' },
+  { code: 'PERMATA', name: 'Bank Permata' },
+  { code: 'DANAMON', name: 'Bank Danamon' },
+  { code: 'BTPN', name: 'Bank BTPN / Jenius' },
+  { code: 'JAGO', name: 'Bank Jago' },
+] as const;
+
+export type BankCode = (typeof SUPPORTED_BANKS)[number]['code'];
+
+export interface PaymentGatewayConfig {
+  ownerId: string;
+  defaultGateway: PaymentGateway;
+  enableMidtrans: boolean;
+  enableDoku: boolean;
+  enableXendit: boolean;
+  enableQris: boolean;
+  enableVa: boolean;
+  enableEwallet: boolean;
+  autoSettleQris: boolean;
+  bankCode: BankCode;
+  bankName: string;
+  accountNumber: string;
+  accountHolder: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface PaymentReconciliation {
+  id: string;
+  ownerId: string;
+  transactionId: string;
+  receiptNo: string;
+  gateway: PaymentGateway;
+  channel: GatewayChannel;
+  providerRef: string;
+  mode: 'sandbox' | 'live';
+  grossAmount: number;
+  mdrFee: number;
+  netAmount: number;
+  status: ReconciliationStatus;
+  paymentCode: string;
+  customerName: string;
+  saleDate: string;
+  settledAt: string;
+  note: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface PayoutRecord {
+  id: string;
+  ownerId: string;
+  gateway: PaymentGateway;
+  providerRef: string;
+  mode: 'sandbox' | 'live';
+  bankCode: BankCode;
+  bankName: string;
+  accountNumber: string;
+  accountHolder: string;
+  amount: number;
+  transferFee: number;
+  netDisbursed: number;
+  status: PayoutStatus;
+  requestedBy: string;
+  note: string;
+  payoutDate: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface GatewayChargeResult {
+  gateway: PaymentGateway;
+  channel: GatewayChannel;
+  providerRef: string;
+  mode: 'sandbox' | 'live';
+  grossAmount: number;
+  mdrFee: number;
+  netAmount: number;
+  paymentCode: string;
+  paymentUrl: string;
+  expiresAt: string;
+  bankLabel?: string;
+}
+
+export interface GatewayServerStatus {
+  gateways: Record<
+    PaymentGateway,
+    {
+      configured: boolean;
+      mode: 'live' | 'sandbox';
+      payoutConfigured: boolean;
+      webhookConfigured: boolean;
+      webhookPath: string;
+    }
+  >;
+}
+
 export type ActiveTab =
   | 'pos'
   | 'inventory'
   | 'customers'
   | 'marketing'
+  | 'finance'
   | 'analytics'
   | 'hq'
   | 'access';
@@ -229,6 +351,7 @@ export interface RolePermissions {
   canEditCustomers: boolean;
   canDeleteCustomers: boolean;
   canManageMarketing: boolean;
+  canManageFinance: boolean;
   canViewAnalytics: boolean;
   canEditStoreProfile: boolean;
   canSeedStoreData: boolean;
@@ -303,6 +426,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canEditCustomers: false,
         canDeleteCustomers: false,
         canManageMarketing: false,
+        canManageFinance: false,
         canViewAnalytics: false,
         canEditStoreProfile: false,
         canSeedStoreData: false,
@@ -314,12 +438,21 @@ export function getRolePermissions(role: UserRole): RolePermissions {
       };
     case 'pemilik':
       return {
-        allowedTabs: ['pos', 'inventory', 'customers', 'marketing', 'analytics', 'access'],
+        allowedTabs: [
+          'pos',
+          'inventory',
+          'customers',
+          'marketing',
+          'finance',
+          'analytics',
+          'access',
+        ],
         canVoidTransaction: true,
         canManageInventory: true,
         canEditCustomers: true,
         canDeleteCustomers: true,
         canManageMarketing: true,
+        canManageFinance: true,
         canViewAnalytics: true,
         canEditStoreProfile: true,
         canSeedStoreData: true,
@@ -331,12 +464,22 @@ export function getRolePermissions(role: UserRole): RolePermissions {
       };
     case 'admin_pusat':
       return {
-        allowedTabs: ['hq', 'pos', 'inventory', 'customers', 'marketing', 'analytics', 'access'],
+        allowedTabs: [
+          'hq',
+          'pos',
+          'inventory',
+          'customers',
+          'marketing',
+          'finance',
+          'analytics',
+          'access',
+        ],
         canVoidTransaction: true,
         canManageInventory: true,
         canEditCustomers: true,
         canDeleteCustomers: true,
         canManageMarketing: true,
+        canManageFinance: true,
         canViewAnalytics: true,
         canEditStoreProfile: true,
         canSeedStoreData: true,
@@ -348,12 +491,22 @@ export function getRolePermissions(role: UserRole): RolePermissions {
       };
     case 'super_admin_pusat':
       return {
-        allowedTabs: ['hq', 'pos', 'inventory', 'customers', 'marketing', 'analytics', 'access'],
+        allowedTabs: [
+          'hq',
+          'pos',
+          'inventory',
+          'customers',
+          'marketing',
+          'finance',
+          'analytics',
+          'access',
+        ],
         canVoidTransaction: true,
         canManageInventory: true,
         canEditCustomers: true,
         canDeleteCustomers: true,
         canManageMarketing: true,
+        canManageFinance: true,
         canViewAnalytics: true,
         canEditStoreProfile: true,
         canSeedStoreData: true,
@@ -395,6 +548,10 @@ export const LIMITS = {
   CAMPAIGN_MSG_MAX: 1000,
   MAX_TX_ITEMS: 50,
   ACTION_MAX: 80,
+  PROVIDER_REF_MAX: 100,
+  PAYMENT_CODE_MAX: 320,
+  ACCOUNT_NUM_MAX: 24,
+  BANK_NAME_MAX: 60,
 } as const;
 
 export function formatRupiah(amount: number): string {

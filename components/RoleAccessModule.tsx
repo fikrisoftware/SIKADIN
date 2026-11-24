@@ -74,6 +74,13 @@ const PERMISSION_MATRIX: Array<{
     super_admin_pusat: 'Lintas Toko',
   },
   {
+    feature: 'Keuangan, Payment Gateway & Penarikan Dana',
+    kasir: 'Checkout POS Saja',
+    pemilik: 'Penuh (1 Toko)',
+    admin_pusat: 'Lintas Toko',
+    super_admin_pusat: 'Lintas Toko',
+  },
+  {
     feature: 'Analisis Penjualan & Laba Kotor',
     kasir: 'Diblokir',
     pemilik: 'Toko Sendiri',
